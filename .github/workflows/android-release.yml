@@ -32,25 +32,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v4
-
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      # 关键改动：显式指定 Gradle 8.9，不依赖项目里的 wrapper
+      - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: '8.9'
           cache-read-only: false
-
-      - name: Fix gradlew permission & line endings
-        run: |
-          git config --global core.autocrlf false
-          chmod +x gradlew
-          head -1 gradlew | cat -A
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -92,13 +85,14 @@ jobs:
           echo "version_name=$VN" >> "$GITHUB_OUTPUT"
           echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
+      # 关键改动：用 gradle 命令，不用 ./gradlew
       - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew --no-daemon --stacktrace --warning-mode all \
+          gradle --no-daemon --stacktrace --warning-mode all \
             :app:assembleRelease \
             -PversionCode=${{ steps.ver.outputs.version_code }} \
             -PversionName=${{ steps.ver.outputs.version_name }}
