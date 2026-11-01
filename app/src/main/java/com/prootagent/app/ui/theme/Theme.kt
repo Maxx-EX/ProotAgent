@@ -1,25 +1,40 @@
 package com.prootagent.app.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColors = darkColorScheme(
-    primary = SkyBlue,
-    onPrimary = Navy900,
-    secondary = Pink,
-    background = Navy900,
+    primary = AccentBlue,
+    secondary = AccentTeal,
+    background = LiquidBgStart,
+    surface = Color.Transparent,
     onBackground = TextPrimary,
-    surface = Navy800,
-    onSurface = TextPrimary,
-    surfaceVariant = Navy700,
-    onSurfaceVariant = TextSecondary
+    onSurface = TextPrimary
 )
+
+// 液态玻璃修饰符
+fun Modifier.liquidGlass() = this
+    .background(
+        color = LiquidGlassBg,
+        shape = RoundedCornerShape(24.dp)
+    )
+    .border(
+        width = 1.dp,
+        brush = Brush.linearGradient(listOf(LiquidBorder, Color.Transparent)),
+        shape = RoundedCornerShape(24.dp)
+    )
 
 @Composable
 fun ProotAgentTheme(content: @Composable () -> Unit) {
@@ -27,14 +42,11 @@ fun ProotAgentTheme(content: @Composable () -> Unit) {
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = Navy900.toArgb()
-            window.navigationBarColor = Navy900.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
     MaterialTheme(
         colorScheme = DarkColors,
-        typography = ProotTypography,
         content = content
     )
 }

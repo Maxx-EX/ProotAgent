@@ -2,12 +2,12 @@ package com.prootagent.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Navy900     = Color(0xFF0B1220)
-val Navy800     = Color(0xFF111A2E)
-val Navy700     = Color(0xFF1B2740)
-val SkyBlue     = Color(0xFF7DD3FC)
-val SkyBlueDark = Color(0xFF0284C7)
-val Pink        = Color(0xFFF472B6)
-val Green       = Color(0xFF4ADE80)
-val TextPrimary = Color(0xFFE6EDF7)
-val TextSecondary = Color(0xFF9FB0C8)
+val LiquidBgStart = Color(0xFF0F172A)
+val LiquidBgEnd   = Color(0xFF1E1B4B)
+val LiquidGlassBg = Color(0x33FFFFFF) // 半透明白
+val LiquidBorder = Color(0x4DFFFFFF)  // 亮白边框
+val AccentBlue   = Color(0xFF38BDF8)
+val AccentTeal   = Color(0xFF14B8A6)
+val AccentPurple = Color(0xFFA855F7)
+val TextPrimary  = Color(0xFFF8FAFC)
+val TextSecondary= Color(0xFF94A3B8)
