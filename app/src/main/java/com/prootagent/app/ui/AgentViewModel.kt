@@ -16,7 +16,10 @@ data class ChatItem(
 
 data class UiState(
     val messages: List<ChatItem> = emptyList(), val isGenerating: Boolean = false,
-    val inputText: String = "", val updateMessage: String? = null
+    val inputText: String = "", 
+    val updateInfo: AppUpdateInfo? = null,
+    val isDownloading: Boolean = false,
+    val downloadProgress: Int = 0
 )
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
@@ -31,14 +34,34 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         mcpServer.start()
-        viewModelScope.launch {
-            val (hasUpdate, msg) = UpdateManager.checkUpdate(BuildConfig.VERSION_NAME)
-            if (hasUpdate) _uiState.update { it.copy(updateMessage = msg) }
-        }
+        checkUpdate()
         _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent，MAXX-EX 出品。\n请先在设置中配置 API，然后发送指令。"))) }
     }
 
-    fun dismissUpdate() = _uiState.update { it.copy(updateMessage = null) }
+    fun checkUpdate() {
+        viewModelScope.launch {
+            val source = settingsRepo.updateSource.first()
+            val info = UpdateManager.checkUpdate(BuildConfig.VERSION_NAME, source)
+            if (info.hasUpdate) _uiState.update { it.copy(updateInfo = info) }
+        }
+    }
+
+    fun dismissUpdate() = _uiState.update { it.copy(updateInfo = null) }
+    
+    fun startDownload(context: android.content.Context) {
+        val info = _uiState.value.updateInfo ?: return
+        _uiState.update { it.copy(isDownloading = true, downloadProgress = 0) }
+        viewModelScope.launch {
+            val file = ApkDownloader.downloadApk(context, info.downloadUrl) { progress ->
+                _uiState.update { it.copy(downloadProgress = progress) }
+            }
+            _uiState.update { it.copy(isDownloading = false) }
+            if (file != null) {
+                ApkDownloader.installApk(context, file)
+            }
+        }
+    }
+
     fun updateInput(text: String) = _uiState.update { it.copy(inputText = text) }
 
     fun sendMessage() {

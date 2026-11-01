@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,13 +35,39 @@ import com.prootagent.app.ui.theme.*
 fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    val context = LocalContext.current
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
     }
 
-    if (state.updateMessage != null) {
-        AlertDialog(onDismissRequest = viewModel::dismissUpdate, title = { Text("发现更新") }, text = { Text(state.updateMessage!!) }, confirmButton = { TextButton(onClick = viewModel::dismissUpdate) { Text("知道了", color = AccentBlue) } }, containerColor = LiquidBgStart)
+    if (state.updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = { if (!state.isDownloading) viewModel.dismissUpdate() },
+            title = { Text("发现新版本 ${state.updateInfo.versionName}") },
+            text = {
+                Column {
+                    Text(state.updateInfo.changelog, color = TextSecondary, fontSize = 12.sp, maxLines = 5)
+                    if (state.isDownloading) {
+                        Spacer(Modifier.height(16.dp))
+                        LinearProgressIndicator(progress = { state.downloadProgress / 100f }, modifier = Modifier.fillMaxWidth(), color = AccentBlue)
+                        Spacer(Modifier.height(8.dp))
+                        Text("正在下载: ${state.downloadProgress}%", color = AccentBlue)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!state.isDownloading) {
+                    TextButton(onClick = { viewModel.startDownload(context) }) { Text("立即更新", color = AccentBlue) }
+                }
+            },
+            dismissButton = {
+                if (!state.isDownloading) {
+                    TextButton(onClick = viewModel::dismissUpdate) { Text("稍后", color = TextSecondary) }
+                }
+            },
+            containerColor = LiquidBgStart
+        )
     }
 
     Scaffold(

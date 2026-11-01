@@ -25,9 +25,13 @@ fun SettingsScreen(navController: NavController) {
     var url by remember { mutableStateOf("") }
     var key by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
+    var updateSource by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
-        url = repo.apiUrl.first(); key = repo.apiKey.first(); model = repo.apiModel.first()
+        url = repo.apiUrl.first()
+        key = repo.apiKey.first()
+        model = repo.apiModel.first()
+        updateSource = repo.updateSource.first()
     }
 
     Scaffold(
@@ -44,8 +48,29 @@ fun SettingsScreen(navController: NavController) {
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("API Base URL") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = LiquidBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, focusedLabelColor = AccentBlue, unfocusedLabelColor = TextSecondary))
             OutlinedTextField(value = key, onValueChange = { key = it }, label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = LiquidBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, focusedLabelColor = AccentBlue, unfocusedLabelColor = TextSecondary))
             OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("模型名称 (e.g. gpt-4o)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = LiquidBorder, focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, focusedLabelColor = AccentBlue, unfocusedLabelColor = TextSecondary))
+            
+            HorizontalDivider(color = LiquidBorder, modifier = Modifier.padding(vertical = 8.dp))
+            
+            Text("更新源设置", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = updateSource == 0, onClick = { updateSource = 0 }, colors = RadioButtonDefaults.colors(selectedColor = AccentBlue))
+                Text("Github 官方 (推荐海外)", color = TextPrimary, modifier = Modifier.padding(start = 8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = updateSource == 1, onClick = { updateSource = 1 }, colors = RadioButtonDefaults.colors(selectedColor = AccentBlue))
+                Text("国内加速镜像 (ghproxy)", color = TextPrimary, modifier = Modifier.padding(start = 8.dp))
+            }
+
+            Spacer(Modifier.weight(1f))
+
             Button(
-                onClick = { scope.launch { repo.saveConfig(url, key, model); navController.popBackStack() } },
+                onClick = { 
+                    scope.launch { 
+                        repo.saveConfig(url, key, model)
+                        repo.saveUpdateSource(updateSource)
+                        navController.popBackStack() 
+                    } 
+                },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = LiquidBgStart),
                 shape = RoundedCornerShape(12.dp)
