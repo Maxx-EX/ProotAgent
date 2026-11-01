@@ -21,7 +21,7 @@ data class UiState(
     val isGenerating: Boolean = false, 
     val inputText: String = "", 
     val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
-    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备",
+    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "检测中...",
     val historyList: List<HistoryRecord> = emptyList(),
     val currentOsType: Int = 0 // 0: Alpine, 1: Ubuntu
 )
@@ -42,22 +42,22 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         checkUpdate()
         checkEnv()
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！请先点击顶部进入环境管理准备 Linux 容器（支持 Alpine 和 Ubuntu）。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。如果你已经提前放置了 Rootfs 文件，系统会自动识别并直接进入工作模式。如果没有，请点击顶部准备环境。"))) }
     }
 
+    // 深度检查环境
     fun checkEnv() {
         viewModelScope.launch {
             val installed = rootfsManager.isInstalled()
             val osType = settingsRepo.osType.first()
             _uiState.update { it.copy(
                 isEnvReady = installed, 
-                envStatus = if (installed) "环境已就绪" else "未准备",
+                envStatus = if (installed) "环境已就绪" else "未准备环境",
                 currentOsType = osType
             ) }
         }
     }
 
-    // 关键：动态判断安装命令
     fun installDeps() {
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true) }
@@ -121,7 +121,10 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun updateInput(text: String) = _uiState.update { it.copy(inputText = text) }
 
     fun sendMessage() {
+        // 发送前再次强制检查一次，防止用户中途自己放了文件进去没刷新
+        checkEnv()
         if (!_uiState.value.isEnvReady || _uiState.value.isGenerating) return
+        
         val prompt = _uiState.value.inputText.trim()
         if (prompt.isEmpty()) return
         

@@ -47,10 +47,28 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
         topBar = {
             TopAppBar(
                 title = { 
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { navController.navigate("env") }) {
-                        Icon(Icons.Filled.Computer, null, tint = if (state.isEnvReady) AccentTeal else glass.textSecondary, modifier = Modifier.size(18.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, 
+                        modifier = Modifier.clickable { 
+                            // 核心逻辑：如果环境未就绪，点击跳转。如果已就绪，弹窗提示或啥也不干。
+                            if (!state.isEnvReady) {
+                                navController.navigate("env") 
+                            } else {
+                                Toast.makeText(context, "环境已就绪，无需重复准备", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Filled.Computer, null, 
+                            tint = if (state.isEnvReady) AccentTeal else Color.Red, 
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(4.dp))
-                        Text(if (state.isEnvReady) "环境已就绪" else "未准备环境", color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 14.sp)
+                        Text(
+                            if (state.isEnvReady) "环境已就绪" else "未准备环境，点击前往", 
+                            color = if (state.isEnvReady) AccentTeal else Color.Red, 
+                            fontSize = 14.sp
+                        )
                     }
                 },
                 actions = {
