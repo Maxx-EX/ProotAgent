@@ -35,6 +35,7 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
+    val glass = LocalGlassColors.current
 
     LaunchedEffect(state.messages.size) { if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1) }
 
@@ -44,41 +45,41 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
             TopAppBar(
                 title = { 
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { navController.navigate("env") }) {
-                        Icon(Icons.Filled.Computer, null, tint = if (state.isEnvReady) AccentTeal else TextSecondary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Computer, null, tint = if (state.isEnvReady) AccentTeal else glass.textSecondary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(if (state.isEnvReady) "环境已就绪" else "点击准备环境", color = if (state.isEnvReady) AccentTeal else TextSecondary, fontSize = 14.sp)
+                        Text(if (state.isEnvReady) "环境已就绪" else "点击准备环境", color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 14.sp)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.saveCurrentChat() }) { Icon(Icons.Filled.Save, null, tint = TextPrimary) }
-                    IconButton(onClick = { navController.navigate("history") }) { Icon(Icons.Filled.History, null, tint = TextPrimary) }
-                    IconButton(onClick = { navController.navigate("settings") }) { Icon(Icons.Filled.Settings, null, tint = TextPrimary) }
+                    IconButton(onClick = { viewModel.saveCurrentChat() }) { Icon(Icons.Filled.Save, null, tint = glass.textPrimary) }
+                    IconButton(onClick = { navController.navigate("history") }) { Icon(Icons.Filled.History, null, tint = glass.textPrimary) }
+                    IconButton(onClick = { navController.navigate("settings") }) { Icon(Icons.Filled.Settings, null, tint = glass.textPrimary) }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = LiquidBgStart.copy(alpha = 0.9f))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = glass.bgStart.copy(alpha = 0.95f))
             )
         },
         bottomBar = {
-            Row(Modifier.fillMaxWidth().background(LiquidBgStart.copy(alpha = 0.95f)).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(glass.bgStart.copy(alpha = 0.95f)).padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = state.inputText, onValueChange = viewModel::updateInput,
-                    modifier = Modifier.weight(1f), placeholder = { Text("输入指令…", color = TextSecondary, fontSize = 14.sp) },
-                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.weight(1f), placeholder = { Text("输入指令…", color = glass.textSecondary, fontSize = 14.sp) },
+                    shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentBlue, unfocusedBorderColor = LiquidBorder,
-                        focusedContainerColor = LiquidGlassBg, unfocusedContainerColor = LiquidGlassBg,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary
+                        focusedBorderColor = AccentBlue, unfocusedBorderColor = glass.border,
+                        focusedContainerColor = glass.glassBg, unfocusedContainerColor = glass.glassBg,
+                        focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary
                     ), maxLines = 3
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = viewModel::sendMessage, enabled = state.isEnvReady && !state.isGenerating && state.inputText.isNotBlank(),
-                    modifier = Modifier.background(if (state.isEnvReady) AccentBlue else LiquidBorder, RoundedCornerShape(50)).size(40.dp)
-                ) { Icon(Icons.Filled.Send, null, tint = if (state.isEnvReady) LiquidBgStart else TextSecondary, modifier = Modifier.size(20.dp)) }
+                    modifier = Modifier.background(if (state.isEnvReady) AccentBlue else glass.glassBg, RoundedCornerShape(50)).size(44.dp)
+                ) { Icon(Icons.Filled.Send, null, tint = if (state.isEnvReady) glass.bgStart else glass.textSecondary, modifier = Modifier.size(20.dp)) }
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(LiquidBgStart, LiquidBgEnd))).padding(padding)) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 10.dp)) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding)) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
                 items(state.messages, key = { it.id }) { msg ->
                     when (msg.type) {
                         ChatItem.Type.USER -> UserBubble(msg.text) { clipboard.setText(AnnotatedString(msg.text)) }
@@ -93,36 +94,39 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
 
 @Composable
 fun UserBubble(text: String, onCopy: () -> Unit) {
+    val glass = LocalGlassColors.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Box(Modifier.widthIn(max = 280.dp).background(AccentBlue, RoundedCornerShape(12.dp, 2.dp, 12.dp, 12.dp)).clickable { onCopy() }.padding(10.dp)) {
-            Text(text, color = LiquidBgStart, fontSize = 14.sp)
+        Box(Modifier.widthIn(max = 280.dp).background(AccentBlue, RoundedCornerShape(16.dp, 2.dp, 16.dp, 16.dp)).clickable { onCopy() }.padding(12.dp)) {
+            Text(text, color = glass.bgStart, fontSize = 14.sp)
         }
     }
 }
 
 @Composable
 fun AiBubble(text: String, onCopy: () -> Unit) {
+    val glass = LocalGlassColors.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-        Box(Modifier.widthIn(max = 300.dp).liquidGlass().clickable { onCopy() }.padding(10.dp)) {
-            Text(text, color = TextPrimary, fontSize = 14.sp)
+        Box(Modifier.widthIn(max = 300.dp).liquidGlass().clickable { onCopy() }.padding(12.dp)) {
+            Text(text, color = glass.textPrimary, fontSize = 14.sp)
         }
     }
 }
 
 @Composable
 fun ProgressCard(msg: ChatItem) {
+    val glass = LocalGlassColors.current
     var expanded by remember { mutableStateOf(msg.isExpanded) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "arrow")
-    Box(Modifier.fillMaxWidth().liquidGlass().clickable { expanded = !expanded }.padding(10.dp)) {
+    Box(Modifier.fillMaxWidth().liquidGlass().clickable { expanded = !expanded }.padding(12.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("⚙️ ${msg.text}", color = AccentTeal, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Icon(Icons.Filled.ExpandMore, null, tint = TextSecondary, modifier = Modifier.rotate(rotation).size(20.dp))
+                Icon(Icons.Filled.ExpandMore, null, tint = glass.textSecondary, modifier = Modifier.rotate(rotation).size(20.dp))
             }
             AnimatedVisibility(visible = expanded) {
-                Column(Modifier.padding(top = 6.dp)) {
-                    HorizontalDivider(color = LiquidBorder)
-                    Spacer(Modifier.height(6.dp))
+                Column(Modifier.padding(top = 8.dp)) {
+                    HorizontalDivider(color = glass.border)
+                    Spacer(Modifier.height(8.dp))
                     msg.details.forEach { Text("> $it", color = AccentBlue, fontFamily = FontFamily.Monospace, fontSize = 11.sp, modifier = Modifier.padding(vertical = 1.dp)) }
                 }
             }

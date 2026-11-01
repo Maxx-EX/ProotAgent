@@ -8,14 +8,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.prootagent.app.core.AgentForegroundService
+import com.prootagent.app.data.SettingsRepository
 import com.prootagent.app.ui.screen.*
 import com.prootagent.app.ui.theme.ProotAgentTheme
+import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> startKeepAliveService() }
@@ -24,7 +26,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         checkPermissions()
-        setContent { ProotAgentTheme { AppNav() } }
+        setContent {
+            val context = this
+            val repo = remember { SettingsRepository(context) }
+            var themeMode by remember { mutableStateOf(0) }
+            LaunchedEffect(Unit) { themeMode = repo.themeMode.first() }
+            
+            ProotAgentTheme(themeMode = themeMode) {
+                AppNav()
+            }
+        }
     }
 
     private fun checkPermissions() {

@@ -51,7 +51,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun prepareEnvironment() {
         viewModelScope.launch {
             _uiState.update { it.copy(isEnvReady = false, envStatus = "正在准备...") }
-            rootfsManager.prepareEnvironment().collect { (p, msg) ->
+            val source = settingsRepo.rootfsSource.first()
+            rootfsManager.prepareEnvironment(source).collect { (p, msg) ->
                 _uiState.update { it.copy(envProgress = p, envStatus = msg) }
             }
             checkEnv()
@@ -65,9 +66,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun saveCurrentChat() {
         if (_uiState.value.messages.isEmpty()) return
         val jsonArray = JSONArray()
-        _uiState.value.messages.forEach {
-            jsonArray.put(JSONObject().apply { put("type", it.type.name); put("text", it.text) })
-        }
+        _uiState.value.messages.forEach { jsonArray.put(JSONObject().apply { put("type", it.type.name); put("text", it.text) }) }
         val title = _uiState.value.messages.firstOrNull { it.type == ChatItem.Type.USER }?.text?.take(15) ?: "新对话"
         viewModelScope.launch { historyRepo.saveChat(System.currentTimeMillis(), title, jsonArray.toString()); loadHistory() }
     }
