@@ -72,9 +72,18 @@ class AgentRepository(
                 var toolCallArgs = StringBuilder()
 
                 suspend fun processStream(): Boolean = suspendCancellableCoroutine { continuation ->
+                    // 防止多次 resume 导致崩溃
+                    var isResumed = false
+                    fun safeResume(result: Boolean) {
+                        if (!isResumed) {
+                            isResumed = true
+                            if (continuation.isActive) continuation.resume(result)
+                        }
+                    }
+
                     val listener = object : EventSourceListener() {
                         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                            if (data == "[DONE]") { continuation.resume(hasToolCalls); return }
+                            if (data == "[DONE]") { safeResume(hasToolCalls); return }
                             try {
                                 val delta = JSONObject(data).getJSONArray("choices").getJSONObject(0).getJSONObject("delta")
                                 if (delta.has("content")) trySend(AgentEvent.Text(delta.getString("content")))
@@ -91,9 +100,9 @@ class AgentRepository(
                             } catch (e: Exception) {}
                         }
                         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                            trySend(AgentEvent.Error("流断开: ${t?.message}")); continuation.resume(false)
+                            trySend(AgentEvent.Error("流断开: ${t?.message}")); safeResume(false)
                         }
-                        override fun onClosed(eventSource: EventSource) { continuation.resume(hasToolCalls) }
+                        override fun onClosed(eventSource: EventSource) { safeResume(hasToolCalls) }
                     }
                     currentEventSource = EventSources.createFactory(client).newEventSource(request, listener)
                     continuation.invokeOnCancellation { currentEventSource?.cancel() }
@@ -111,18 +120,25 @@ class AgentRepository(
                         }))
                     })
                     
-                    val cmd = try { JSONObject(toolCallArgs.toString()).getString("command") } catch (e: Exception) { "echo 失败" }
+                    val cmd = try { JSONObject(toolCallArgs.toString()).getString("command") } catch (e: Exception) { "echo 参数解析失败" }
                     send(AgentEvent.Progress("执行命令", cmd))
                     
                     val output = StringBuilder()
-                    cmdExecutor(cmd).collect { logLine ->
-                        output.append(logLine).append("\n")
-                        send(AgentEvent.Progress("运行中", logLine))
+                    try {
+                        cmdExecutor(cmd).collect { logLine ->
+                            output.append(logLine).append("\n")
+                            send(AgentEvent.Progress("运行中", logLine))
+                        }
+                    } catch (e: Exception) {
+                        output.append("执行异常: ${e.message}")
                     }
+                    
                     messages.put(JSONObject().apply { put("role", "tool"); put("tool_call_id", toolCallId); put("content", output.toString()) })
                 } else break
             }
             send(AgentEvent.Done)
-        } catch (e: Exception) { send(AgentEvent.Error("异常: ${e.message}")) }
+        } catch (e: Exception) { 
+            send(AgentEvent.Error("处理异常: ${e.message}")) 
+        }
     }
 }

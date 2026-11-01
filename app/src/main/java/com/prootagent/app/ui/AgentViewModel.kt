@@ -11,10 +11,14 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 data class ChatItem(
-    val id: Long = System.currentTimeMillis(), val type: Type, val text: String = "",
-    val isExpanded: Boolean = false, val details: MutableList<String> = mutableListOf()
+    val id: Long, 
+    val type: Type, 
+    val text: String = "",
+    val isExpanded: Boolean = false, 
+    val details: MutableList<String> = mutableListOf()
 ) { enum class Type { USER, AI, PROGRESS } }
 
 data class UiState(
@@ -37,6 +41,9 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val agentRepo = AgentRepository(settingsRepo, prootManager, sshManager)
     private val mcpServer = McpServer(8080, prootManager)
 
+    // 安全递增的 ID 生成器，彻底解决 LazyColumn key 冲突问题
+    private val idGenerator = AtomicLong(System.currentTimeMillis())
+
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
 
@@ -49,7 +56,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             checkEnv()
         }
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！请确保已经把 Ubuntu 解压在 /storage/emulated/0/ai1 或直接放入压缩包，系统会自动识别。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(id = idGenerator.incrementAndGet(), type = ChatItem.Type.AI, text = "你好！我是调度 Agent。请确保环境正常。"))) }
     }
 
     fun toggleWorkMode(mode: Int) {
@@ -87,30 +94,39 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun installDeps() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isGenerating = true) }
-            val cmd = "apt update && apt install -y python3 python3-pip git curl build-essential || apk update && apk add python3 py3-pip git curl build-base"
-            if (_uiState.value.workMode == 0) {
-                prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath).collect { _ -> }
-            } else {
-                val host = settingsRepo.sshHost.first()
-                val port = settingsRepo.sshPort.first()
-                val user = settingsRepo.sshUser.first()
-                val pass = settingsRepo.sshPass.first()
-                sshManager.executeCommand(host, port, user, pass, cmd).collect { _ -> }
+            try {
+                _uiState.update { it.copy(isGenerating = true) }
+                val cmd = "apt update && apt install -y python3 python3-pip git curl build-essential || apk update && apk add python3 py3-pip git curl build-base"
+                if (_uiState.value.workMode == 0) {
+                    prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath).collect { _ -> }
+                } else {
+                    val host = settingsRepo.sshHost.first()
+                    val port = settingsRepo.sshPort.first()
+                    val user = settingsRepo.sshUser.first()
+                    val pass = settingsRepo.sshPass.first()
+                    sshManager.executeCommand(host, port, user, pass, cmd).collect { _ -> }
+                }
+            } catch (e: Exception) {
+                // 捕获所有异常防止闪退
+            } finally {
+                _uiState.update { it.copy(isGenerating = false) }
             }
-            _uiState.update { it.copy(isGenerating = false) }
         }
     }
 
     fun prepareEnvironment() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isEnvReady = false, envStatus = "正在准备...", envProgress = 0) }
-            val source = settingsRepo.rootfsSource.first()
-            val osType = settingsRepo.osType.first()
-            rootfsManager.prepareEnvironment(source, osType).collect { (p, msg) ->
-                _uiState.update { it.copy(envProgress = p, envStatus = msg) }
+            try {
+                _uiState.update { it.copy(isEnvReady = false, envStatus = "正在准备...", envProgress = 0) }
+                val source = settingsRepo.rootfsSource.first()
+                val osType = settingsRepo.osType.first()
+                rootfsManager.prepareEnvironment(source, osType).collect { (p, msg) ->
+                    _uiState.update { it.copy(envProgress = p, envStatus = msg) }
+                }
+                checkEnv()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(envStatus = "准备失败: ${e.message}") }
             }
-            checkEnv()
         }
     }
 
@@ -119,10 +135,12 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveCurrentChat() {
         if (_uiState.value.messages.isEmpty()) return
-        val jsonArray = JSONArray()
-        _uiState.value.messages.forEach { jsonArray.put(JSONObject().apply { put("type", it.type.name); put("text", it.text) }) }
-        val title = _uiState.value.messages.firstOrNull { it.type == ChatItem.Type.USER }?.text?.take(15) ?: "新对话"
-        viewModelScope.launch { historyRepo.saveChat(System.currentTimeMillis(), title, jsonArray.toString()); loadHistory() }
+        try {
+            val jsonArray = JSONArray()
+            _uiState.value.messages.forEach { jsonArray.put(JSONObject().apply { put("type", it.type.name); put("text", it.text) }) }
+            val title = _uiState.value.messages.firstOrNull { it.type == ChatItem.Type.USER }?.text?.take(15) ?: "新对话"
+            viewModelScope.launch { historyRepo.saveChat(System.currentTimeMillis(), title, jsonArray.toString()); loadHistory() }
+        } catch (_: Exception) {}
     }
 
     fun loadChat(record: HistoryRecord) {
@@ -131,7 +149,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             val msgs = mutableListOf<ChatItem>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
-                msgs.add(ChatItem(type = ChatItem.Type.valueOf(obj.getString("type")), text = obj.getString("text")))
+                msgs.add(ChatItem(id = idGenerator.incrementAndGet(), type = ChatItem.Type.valueOf(obj.getString("type")), text = obj.getString("text")))
             }
             _uiState.update { it.copy(messages = msgs) }
         } catch (_: Exception) {}
@@ -141,9 +159,11 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun checkUpdate() {
         viewModelScope.launch {
-            val source = settingsRepo.updateSource.first()
-            val info = UpdateManager.checkUpdate(BuildConfig.VERSION_NAME, source)
-            if (info.hasUpdate) _uiState.update { it.copy(updateInfo = info) }
+            try {
+                val source = settingsRepo.updateSource.first()
+                val info = UpdateManager.checkUpdate(BuildConfig.VERSION_NAME, source)
+                if (info.hasUpdate) _uiState.update { it.copy(updateInfo = info) }
+            } catch (_: Exception) {}
         }
     }
 
@@ -155,9 +175,12 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         val prompt = _uiState.value.inputText.trim()
         if (prompt.isEmpty()) return
         
-        val userMsg = ChatItem(type = ChatItem.Type.USER, text = prompt)
-        val aiMsgId = System.currentTimeMillis() + 1
-        val progressId = System.currentTimeMillis() + 2
+        // 生成绝对不重复的 ID
+        val userMsgId = idGenerator.incrementAndGet()
+        val aiMsgId = idGenerator.incrementAndGet()
+        val progressId = idGenerator.incrementAndGet()
+
+        val userMsg = ChatItem(id = userMsgId, type = ChatItem.Type.USER, text = prompt)
         
         _uiState.update { it.copy(
             messages = it.messages + userMsg + ChatItem(id = aiMsgId, type = ChatItem.Type.AI, text = "") + ChatItem(id = progressId, type = ChatItem.Type.PROGRESS, text = "正在思考…"),
@@ -165,33 +188,45 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         ) }
 
         viewModelScope.launch {
-            val host = settingsRepo.sshHost.first()
-            val port = settingsRepo.sshPort.first()
-            val user = settingsRepo.sshUser.first()
-            val pass = settingsRepo.sshPass.first()
+            try {
+                val host = settingsRepo.sshHost.first()
+                val port = settingsRepo.sshPort.first()
+                val user = settingsRepo.sshUser.first()
+                val pass = settingsRepo.sshPass.first()
 
-            val cmdExecutor: (String) -> Flow<String> = if (_uiState.value.workMode == 0) {
-                { cmd -> prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath) }
-            } else {
-                { cmd -> sshManager.executeCommand(host, port, user, pass, cmd) }
-            }
-
-            agentRepo.runAgent(prompt, cmdExecutor).collect { event ->
-                when (event) {
-                    is AgentEvent.Text -> _uiState.update { state ->
-                        state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it })
-                    }
-                    is AgentEvent.Progress -> _uiState.update { state ->
-                        state.copy(messages = state.messages.map { msg ->
-                            if (msg.id == progressId) msg.copy(text = event.summary, details = msg.details.toMutableList().apply { if (event.log.isNotEmpty()) add(event.log); if (size > 30) removeAt(0) })
-                            else msg
-                        })
-                    }
-                    is AgentEvent.Error -> _uiState.update { state ->
-                        state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it })
-                    }
-                    AgentEvent.Done -> { _uiState.update { it.copy(isGenerating = false) }; saveCurrentChat() }
+                val cmdExecutor: (String) -> Flow<String> = if (_uiState.value.workMode == 0) {
+                    { cmd -> prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath) }
+                } else {
+                    { cmd -> sshManager.executeCommand(host, port, user, pass, cmd) }
                 }
+
+                agentRepo.runAgent(prompt, cmdExecutor).collect { event ->
+                    when (event) {
+                        is AgentEvent.Text -> _uiState.update { state ->
+                            state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it })
+                        }
+                        is AgentEvent.Progress -> _uiState.update { state ->
+                            state.copy(messages = state.messages.map { msg ->
+                                if (msg.id == progressId) msg.copy(text = event.summary, details = msg.details.toMutableList().apply { if (event.log.isNotEmpty()) add(event.log); if (size > 30) removeAt(0) })
+                                else msg
+                            })
+                        }
+                        is AgentEvent.Error -> _uiState.update { state ->
+                            state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it })
+                        }
+                        AgentEvent.Done -> { _uiState.update { it.copy(isGenerating = false) }; saveCurrentChat() }
+                    }
+                }
+            } catch (e: Exception) {
+                // 兜底捕获，防止任何异常导致闪退
+                _uiState.update { state ->
+                    state.copy(messages = state.messages.map { 
+                        if (it.id == aiMsgId) it.copy(text = it.text + "\n[系统异常] ${e.message}") 
+                        else it 
+                    })
+                }
+            } finally {
+                _uiState.update { it.copy(isGenerating = false) }
             }
         }
     }
