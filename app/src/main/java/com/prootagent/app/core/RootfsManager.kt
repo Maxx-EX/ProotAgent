@@ -30,18 +30,14 @@ class RootfsManager(private val context: Context) {
     }
 
     fun isInstalled(): Boolean = File(rootfsDir, ".installed").exists()
-
-    fun deleteRootfs() {
-        rootfsDir.deleteRecursively()
-        rootfsTar.delete()
-    }
+    fun deleteRootfs() { rootfsDir.deleteRecursively(); rootfsTar.delete() }
 
     fun prepareEnvironment(sourceType: Int, osType: Int): Flow<Pair<Int, String>> = flow {
         if (isInstalled()) { emit(Pair(100, "环境已就绪")); return@flow }
         rootfsDir.mkdirs()
         var downloaded = 0L
 
-        // osType: 0 = Alpine, 1 = Ubuntu
+        // osType: 0 = Alpine, 1 = Ubuntu 22.04
         val urlStr = when (osType) {
             0 -> when (sourceType) {
                 1 -> "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
@@ -82,6 +78,8 @@ class RootfsManager(private val context: Context) {
         
         try {
             extractTarGz(rootfsTar, rootfsDir)
+            // 关键：修复 Ubuntu 的 DNS 问题，否则无法联网
+            File(rootfsDir, "etc/resolv.conf").writeText("nameserver 8.8.8.8\nnameserver 114.114.114.114\n")
             File(rootfsDir, ".installed").createNewFile()
             rootfsTar.delete()
             emit(Pair(100, "环境准备完毕"))

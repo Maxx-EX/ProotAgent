@@ -22,7 +22,8 @@ data class UiState(
     val inputText: String = "", 
     val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
     val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备",
-    val historyList: List<HistoryRecord> = emptyList()
+    val historyList: List<HistoryRecord> = emptyList(),
+    val currentOsType: Int = 0 // 0: Alpine, 1: Ubuntu
 )
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
@@ -45,14 +46,27 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun checkEnv() {
-        val installed = rootfsManager.isInstalled()
-        _uiState.update { it.copy(isEnvReady = installed, envStatus = if (installed) "环境已就绪" else "未准备") }
+        viewModelScope.launch {
+            val installed = rootfsManager.isInstalled()
+            val osType = settingsRepo.osType.first()
+            _uiState.update { it.copy(
+                isEnvReady = installed, 
+                envStatus = if (installed) "环境已就绪" else "未准备",
+                currentOsType = osType
+            ) }
+        }
     }
 
+    // 关键：动态判断安装命令
     fun installDeps() {
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true) }
-            val cmd = "apt update && apt install -y python3 python3-pip git curl build-essential"
+            val osType = settingsRepo.osType.first()
+            val cmd = if (osType == 1) {
+                "apt update && apt install -y python3 python3-pip git curl build-essential"
+            } else {
+                "apk update && apk add python3 py3-pip nodejs npm git curl build-base"
+            }
             prootManager.executeCommand(cmd).collect { _ -> }
             _uiState.update { it.copy(isGenerating = false) }
         }
@@ -70,11 +84,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun stopGeneration() {
-        agentRepo.stopGeneration()
-        _uiState.update { it.copy(isGenerating = false) }
-    }
-
+    fun stopGeneration() { agentRepo.stopGeneration(); _uiState.update { it.copy(isGenerating = false) } }
     fun loadHistory() { viewModelScope.launch { _uiState.update { it.copy(historyList = historyRepo.loadAll()) } } }
 
     fun saveCurrentChat() {
@@ -142,10 +152,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                         val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it }
                         state.copy(messages = updated)
                     }
-                    AgentEvent.Done -> {
-                        _uiState.update { it.copy(isGenerating = false) }
-                        saveCurrentChat()
-                    }
+                    AgentEvent.Done -> { _uiState.update { it.copy(isGenerating = false) }; saveCurrentChat() }
                 }
             }
         }

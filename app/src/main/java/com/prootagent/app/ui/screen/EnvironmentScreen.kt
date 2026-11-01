@@ -36,7 +36,10 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
         Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.fillMaxWidth().liquidGlass().padding(20.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("Alpine Linux", color = glass.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (state.currentOsType == 1) "Ubuntu 22.04 LTS" else "Alpine Linux",
+                        color = glass.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text(state.envStatus, color = if (state.isEnvReady) AccentTeal else glass.textSecondary)
                     if (!state.isEnvReady && state.envProgress in 1..99) {
@@ -58,7 +61,10 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
                 Box(Modifier.fillMaxWidth().liquidGlass().padding(20.dp)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text("开发组件", color = AccentBlue, fontWeight = FontWeight.Bold)
-                        Text("安装 Python, Node, Git 等", color = glass.textSecondary, fontSize = 12.sp)
+                        Text(
+                            if (state.currentOsType == 1) "安装 Python, Git 等 (apt)" else "安装 Python, Git 等 (apk)",
+                            color = glass.textSecondary, fontSize = 12.sp
+                        )
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = { viewModel.installDeps() },
