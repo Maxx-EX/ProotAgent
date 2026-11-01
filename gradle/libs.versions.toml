@@ -13,6 +13,7 @@ coroutines        = "1.9.0"
 documentfile      = "1.0.1"
 
 [libraries]
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 androidx-core-ktx              = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose      = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 
@@ -41,3 +42,4 @@ android-application  = { id = "com.android.application",                   versi
 kotlin-android       = { id = "org.jetbrains.kotlin.android",              version.ref = "kotlin" }
 kotlin-compose       = { id = "org.jetbrains.kotlin.plugin.compose",       version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+commons-compress = "1.26.0"

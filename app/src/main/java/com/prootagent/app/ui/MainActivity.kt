@@ -14,8 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.prootagent.app.core.AgentForegroundService
-import com.prootagent.app.ui.screen.HomeScreen
-import com.prootagent.app.ui.screen.SettingsScreen
+import com.prootagent.app.ui.screen.*
 import com.prootagent.app.ui.theme.ProotAgentTheme
 
 class MainActivity : ComponentActivity() {
@@ -49,5 +48,7 @@ fun AppNav() {
     NavHost(navController = navController, startDestination = "home") {
         composable("home") { HomeScreen(navController) }
         composable("settings") { SettingsScreen(navController) }
+        composable("env") { EnvironmentScreen(navController) }
+        composable("history") { HistoryScreen(navController) }
     }
 }
