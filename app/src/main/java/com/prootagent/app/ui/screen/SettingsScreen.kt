@@ -1,5 +1,6 @@
 package com.prootagent.app.ui.screen
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +36,6 @@ fun SettingsScreen(navController: NavController) {
     var rootfsSource by remember { mutableStateOf(0) }
     var osType by remember { mutableStateOf(0) }
     
-    // SSH 配置
     var sshHost by remember { mutableStateOf("127.0.0.1") }
     var sshPort by remember { mutableStateOf("8022") }
     var sshUser by remember { mutableStateOf("") }

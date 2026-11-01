@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 data class ChatItem(
     val id: Long = System.currentTimeMillis(), val type: Type, val text: String = "",
@@ -20,9 +21,10 @@ data class UiState(
     val messages: List<ChatItem> = emptyList(), 
     val isGenerating: Boolean = false, 
     val inputText: String = "", 
-    val updateInfo: AppUpdateInfo? = null, val isEnvReady: Boolean = false, 
-    val envStatus: String = "未准备", val activeRootfsPath: String = "",
+    val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
+    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备", val activeRootfsPath: String = "",
     val historyList: List<HistoryRecord> = emptyList(),
+    val currentOsType: Int = 0,
     val workMode: Int = 0
 )
 
@@ -58,19 +60,28 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun checkEnv() {
         viewModelScope.launch {
+            val osType = settingsRepo.osType.first()
             if (_uiState.value.workMode == 1) {
-                _uiState.update { it.copy(isEnvReady = true, envStatus = "已连接 Termux SSH") }
+                _uiState.update { it.copy(isEnvReady = true, envStatus = "已连接 Termux SSH", currentOsType = osType) }
             } else {
                 val foundDir = prootManager.findRootfs() 
                 val path = foundDir?.absolutePath ?: "/storage/emulated/0/ai1"
-                val isExist = foundDir != null || java.io.File("/storage/emulated/0/ai1").exists()
+                val isExist = foundDir != null || File("/storage/emulated/0/ai1").exists()
                 
                 _uiState.update { it.copy(
                     isEnvReady = isExist, 
                     envStatus = if (isExist) "环境已就绪: $path" else "未准备",
-                    activeRootfsPath = path
+                    activeRootfsPath = path,
+                    currentOsType = osType
                 ) }
             }
+        }
+    }
+
+    fun setManualPath(path: String) {
+        val file = File(path)
+        if (File(file, "bin/sh").exists() || File(file, "bin/bash").exists()) {
+            _uiState.update { it.copy(isEnvReady = true, envStatus = "已识别手动目录: $path", activeRootfsPath = path) }
         }
     }
 
@@ -93,11 +104,11 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun prepareEnvironment() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isEnvReady = false, envStatus = "正在准备...") }
+            _uiState.update { it.copy(isEnvReady = false, envStatus = "正在准备...", envProgress = 0) }
             val source = settingsRepo.rootfsSource.first()
             val osType = settingsRepo.osType.first()
             rootfsManager.prepareEnvironment(source, osType).collect { (p, msg) ->
-                _uiState.update { it.copy(envStatus = msg) }
+                _uiState.update { it.copy(envProgress = p, envStatus = msg) }
             }
             checkEnv()
         }
@@ -154,7 +165,6 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         ) }
 
         viewModelScope.launch {
-            // 关键修复：提前获取 SSH 配置，避免在非 suspend Lambda 中调用挂起函数
             val host = settingsRepo.sshHost.first()
             val port = settingsRepo.sshPort.first()
             val user = settingsRepo.sshUser.first()

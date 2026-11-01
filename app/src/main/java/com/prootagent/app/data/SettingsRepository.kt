@@ -19,12 +19,11 @@ class SettingsRepository(private val context: Context) {
         val ROOTFS_SOURCE = intPreferencesKey("rootfs_source")
         val OS_TYPE = intPreferencesKey("os_type")
         
-        // SSH 相关
         val SSH_HOST = stringPreferencesKey("ssh_host")
         val SSH_PORT = intPreferencesKey("ssh_port")
         val SSH_USER = stringPreferencesKey("ssh_user")
         val SSH_PASS = stringPreferencesKey("ssh_pass")
-        val WORK_MODE = intPreferencesKey("work_mode") // 0: Proot, 1: Termux SSH
+        val WORK_MODE = intPreferencesKey("work_mode")
     }
     
     val apiUrl = context.dataStore.data.map { it[API_URL] ?: "https://api.openai.com/v1" }
@@ -37,8 +36,8 @@ class SettingsRepository(private val context: Context) {
     val osType = context.dataStore.data.map { it[OS_TYPE] ?: 0 }
     
     val sshHost = context.dataStore.data.map { it[SSH_HOST] ?: "127.0.0.1" }
-    val sshPort = context.dataStore.data.map { it[SSH_PORT] ?: 8022 } // Termux 默认 8022
-    val sshUser = context.dataStore.data.map { it[SSH_USER] ?: "u0_a" }
+    val sshPort = context.dataStore.data.map { it[SSH_PORT] ?: 8022 }
+    val sshUser = context.dataStore.data.map { it[SSH_USER] ?: "" }
     val sshPass = context.dataStore.data.map { it[SSH_PASS] ?: "" }
     val workMode = context.dataStore.data.map { it[WORK_MODE] ?: 0 }
 
@@ -46,7 +45,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun saveThemeMode(mode: Int) = context.dataStore.edit { it[THEME_MODE] = mode }
     suspend fun saveOsType(type: Int) = context.dataStore.edit { it[OS_TYPE] = type }
     suspend fun saveUpdateSource(source: Int) = context.dataStore.edit { it[UPDATE_SOURCE] = source }
-    
+    suspend fun saveRootfsSource(source: Int) = context.dataStore.edit { it[ROOTFS_SOURCE] = source }
     suspend fun saveSshConfig(host: String, port: Int, user: String, pass: String) = context.dataStore.edit { 
         it[SSH_HOST] = host; it[SSH_PORT] = port; it[SSH_USER] = user; it[SSH_PASS] = pass 
     }

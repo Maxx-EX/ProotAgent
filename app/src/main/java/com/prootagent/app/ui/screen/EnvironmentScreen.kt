@@ -30,7 +30,6 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
 
     val dirLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
-            // 简单提取 path（注意：真实 SAF 路径转换比较复杂，这里为了简单直接解析）
             val path = it.path?.replace("/tree/primary:", "/storage/emulated/0/")?.replace("/tree/", "/storage/emulated/0/")
             if (path != null) viewModel.setManualPath(path)
         }
@@ -73,7 +72,6 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
 
                         Spacer(Modifier.height(12.dp))
                         
-                        // 添加手动导入按钮
                         OutlinedButton(
                             onClick = { dirLauncher.launch(null) },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
