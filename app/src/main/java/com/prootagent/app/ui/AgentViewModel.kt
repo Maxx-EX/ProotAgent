@@ -21,7 +21,7 @@ data class UiState(
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
-    private val prootManager = ProotManager(app.nativeLibraryDir, app.filesDir)
+    private val prootManager = ProotManager(app.applicationInfo.nativeLibraryDir, app.filesDir)
     private val rootfsManager = RootfsManager(app.filesDir)
     private val agentRepo = AgentRepository(settingsRepo, prootManager)
     private val mcpServer = McpServer(8080, prootManager)
