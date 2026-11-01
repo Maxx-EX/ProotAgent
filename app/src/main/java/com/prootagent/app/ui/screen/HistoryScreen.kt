@@ -1,4 +1,5 @@
 package com.prootagent.app.ui.screen
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,23 +23,33 @@ import com.prootagent.app.ui.theme.*
 @Composable
 fun HistoryScreen(navController: NavController, viewModel: AgentViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
+    val glass = LocalGlassColors.current
     LaunchedEffect(Unit) { viewModel.loadHistory() }
 
     Scaffold(
-        containerColor = LiquidBgStart,
+        containerColor = glass.bgStart,
         topBar = {
             TopAppBar(
-                title = { Text("对话记录", color = TextPrimary) },
-                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null, tint = TextPrimary) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = LiquidBgStart)
+                title = { Text("对话记录", color = glass.textPrimary) },
+                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null, tint = glass.textPrimary) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = glass.bgStart)
             )
         }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(LiquidBgStart, LiquidBgEnd))).padding(padding), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(
+            Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             items(state.historyList) { record ->
-                Row(Modifier.fillMaxWidth().liquidGlass().clickable { viewModel.loadChat(record); navController.popBackStack() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(record.title, color = TextPrimary, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { viewModel.deleteHistory(record.id) }) { Icon(Icons.Filled.Delete, null, tint = AccentPurple) }
+                Row(
+                    Modifier.fillMaxWidth().liquidGlass().clickable { viewModel.loadChat(record); navController.popBackStack() }.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(record.title, color = glass.textPrimary, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { viewModel.deleteHistory(record.id) }) {
+                        Icon(Icons.Filled.Delete, null, tint = AccentPurple)
+                    }
                 }
             }
         }

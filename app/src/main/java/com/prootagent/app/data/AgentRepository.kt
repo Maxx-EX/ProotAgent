@@ -1,11 +1,12 @@
-import kotlin.coroutines.resume
-import kotlinx.coroutines.suspendCancellableCoroutine
 package com.prootagent.app.data
+
 import com.prootagent.app.core.ProotManager
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.*
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody.Companion.toMediaType
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -71,7 +72,7 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                 suspend fun processStream(): Boolean = suspendCancellableCoroutine { continuation ->
                     val listener = object : EventSourceListener() {
                         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                            if (data == "[DONE]") { continuation.resumeWith(Result.success(hasToolCalls)); return }
+                            if (data == "[DONE]") { continuation.resume(hasToolCalls); return }
                             try {
                                 val delta = JSONObject(data).getJSONArray("choices").getJSONObject(0).getJSONObject("delta")
                                 if (delta.has("content")) {
@@ -93,10 +94,10 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                         }
                         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                             trySend(AgentEvent.Error("流断开: ${t?.message}"))
-                            continuation.resumeWith(Result.success(false))
+                            continuation.resume(false)
                         }
                         override fun onClosed(eventSource: EventSource) {
-                            continuation.resumeWith(Result.success(hasToolCalls))
+                            continuation.resume(hasToolCalls)
                         }
                     }
                     currentEventSource = EventSources.createFactory(client).newEventSource(request, listener)
@@ -125,7 +126,7 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                     }
                     messages.put(JSONObject().apply { put("role", "tool"); put("tool_call_id", toolCallId); put("content", output.toString()) })
                 } else {
-                    break // 对话结束
+                    break
                 }
             }
             send(AgentEvent.Done)

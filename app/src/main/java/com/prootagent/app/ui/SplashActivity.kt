@@ -1,4 +1,5 @@
 package com.prootagent.app.ui
+
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
@@ -24,20 +25,31 @@ class SplashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val alpha = remember { Animatable(0f) }
-            val offsetY = remember { Animatable(50f) }
-            LaunchedEffect(Unit) {
-                alpha.animateTo(1f, animationSpec = tween(800))
-                offsetY.animateTo(0f, animationSpec = tween(800))
-                delay(800)
-                startActivity(Intent(this@SplashActivity, MainActivity::class.java))
-                finish()
-            }
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(LiquidBgStart, LiquidBgEnd))), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { this.alpha = alpha.value; translationY = offsetY.value }) {
-                    Text("ProotAgent", color = TextPrimary, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(16.dp))
-                    Text("MAXX-EX 开发", color = AccentBlue, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
+            // 启动页强制使用深色主题，显得高级
+            ProotAgentTheme(themeMode = 1) {
+                val glass = LocalGlassColors.current
+                val alpha = remember { Animatable(0f) }
+                val offsetY = remember { Animatable(50f) }
+                
+                LaunchedEffect(Unit) {
+                    alpha.animateTo(1f, animationSpec = tween(800))
+                    offsetY.animateTo(0f, animationSpec = tween(800))
+                    delay(800)
+                    startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+                    finish()
+                }
+                Box(
+                    Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.graphicsLayer { this.alpha = alpha.value; translationY = offsetY.value }
+                    ) {
+                        Text("ProotAgent", color = glass.textPrimary, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(16.dp))
+                        Text("MAXX-EX 开发", color = AccentBlue, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
+                    }
                 }
             }
         }
