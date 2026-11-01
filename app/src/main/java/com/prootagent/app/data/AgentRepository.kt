@@ -35,7 +35,7 @@ class AgentRepository(
 
     private val systemPrompt = """
         你是 AndroidLinuxAI 端侧容器智能调度 Agent。
-        环境：Android APP + 远程或本地 Linux。你当前拥有一个 execute_shell 工具。
+        环境：Android APP + Proot Linux。你当前拥有一个 execute_shell 工具。
         规则：必须调用工具执行。
     """.trimIndent()
 
@@ -72,7 +72,6 @@ class AgentRepository(
                 var toolCallArgs = StringBuilder()
 
                 suspend fun processStream(): Boolean = suspendCancellableCoroutine { continuation ->
-                    // 防止多次 resume 导致崩溃
                     var isResumed = false
                     fun safeResume(result: Boolean) {
                         if (!isResumed) {
@@ -100,7 +99,12 @@ class AgentRepository(
                             } catch (e: Exception) {}
                         }
                         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                            trySend(AgentEvent.Error("流断开: ${t?.message}")); safeResume(false)
+                            // 完美处理 Socket 关闭，绝不让它引发崩溃
+                            if (t is java.net.SocketException || t?.message?.contains("Socket closed") == true) {
+                                safeResume(hasToolCalls)
+                            } else {
+                                trySend(AgentEvent.Error("网络异常: ${t?.message}")); safeResume(false)
+                            }
                         }
                         override fun onClosed(eventSource: EventSource) { safeResume(hasToolCalls) }
                     }
@@ -137,7 +141,8 @@ class AgentRepository(
                 } else break
             }
             send(AgentEvent.Done)
-        } catch (e: Exception) { 
+        } catch (e: Throwable) { 
+            // 捕获所有 Throwable 防止崩溃
             send(AgentEvent.Error("处理异常: ${e.message}")) 
         }
     }

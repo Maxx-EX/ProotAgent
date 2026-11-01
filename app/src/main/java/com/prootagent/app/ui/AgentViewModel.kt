@@ -212,7 +212,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                             })
                         }
                         is AgentEvent.Error -> _uiState.update { state ->
-                            state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it })
+                            state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it }, isGenerating = false)
                         }
                         AgentEvent.Done -> { _uiState.update { it.copy(isGenerating = false) }; saveCurrentChat() }
                     }
