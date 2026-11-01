@@ -5,11 +5,6 @@ on:
     branches: [ main ]
     tags: [ 'v*' ]
   workflow_dispatch:
-    inputs:
-      version_name:
-        description: 'Version name (e.g. 1.0.0)'
-        required: false
-        default: ''
 
 permissions:
   contents: write
@@ -29,8 +24,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -44,38 +37,29 @@ jobs:
           gradle-version: '8.9'
           cache-read-only: false
 
-      # 不再使用 android-actions/setup-android，
-      # 直接用 runner 预装 sdkmanager，避免其内部 licenses 交互卡死
-      - name: Accept SDK licenses & install packages
+      - name: Accept SDK licenses & install packages (NDK, CMake)
         run: |
           set -e
-          if [ -z "${ANDROID_HOME:-}" ]; then
-            echo "::error::ANDROID_HOME 未设置"
-            exit 1
-          fi
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER="$(command -v sdkmanager || true)"
           fi
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "::error::找不到 sdkmanager"
-            exit 1
-          fi
-          echo "sdkmanager: $SDKMANAGER"
-          "$SDKMANAGER" --version || true
-
-          # 连续喂 y，全部 license 一次接受
+          
+          # 连续喂 y 接受所有协议
           printf 'y\n%.0s' $(seq 1 200) | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
 
-          # 安装编译所需的三个包（license 已接受，不再交互）
+          # 安装必要的 SDK, NDK, CMake 组件
           "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-35" \
-            "build-tools;35.0.0"
+            "build-tools;35.0.0" \
+            "ndk;27.0.12077973" \
+            "cmake;3.22.1"
 
-          echo "----- installed packages -----"
-          ls "$ANDROID_HOME/platforms"
-          ls "$ANDROID_HOME/build-tools"
+          echo "----- installed ndk -----"
+          ls "$ANDROID_HOME/ndk"
+          echo "----- installed cmake -----"
+          ls "$ANDROID_HOME/cmake"
 
       - name: Materialize keystore
         env:
@@ -85,7 +69,7 @@ jobs:
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
-            echo "::error::签名四项 Secret 不完整（KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD）"
+            echo "::error::签名四项 Secret 不完整"
             exit 1
           fi
           printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
@@ -96,8 +80,7 @@ jobs:
         id: ver
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VN="${{ inputs.version_name }}"
-            [ -z "$VN" ] && VN="1.0.0"
+            VN="1.0.0"
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VN="${GITHUB_REF#refs/tags/v}"
           else
@@ -117,35 +100,10 @@ jobs:
             -PversionCode=${{ steps.ver.outputs.version_code }} \
             -PversionName=${{ steps.ver.outputs.version_name }}
 
-      - name: Verify outputs
-        run: |
-          set -e
-          ls -lR app/build/outputs/apk/release/
-          SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n1)
-          [ -n "$SRC" ] || { echo "::error::未找到 APK"; exit 1; }
-          DST="ProotAgent-${{ steps.ver.outputs.version_name }}-${{ steps.ver.outputs.version_code }}-arm64-v8a.apk"
-          cp "$SRC" "$RUNNER_TEMP/$DST"
-          echo "APK_PATH=$RUNNER_TEMP/$DST" >> "$GITHUB_ENV"
-          echo "APK_NAME=$DST" >> "$GITHUB_ENV"
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ProotAgent-release
-          path: ${{ env.APK_PATH }}
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ProotAgent ${{ github.ref_name }}
-          files: ${{ env.APK_PATH }}
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
