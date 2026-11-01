@@ -38,23 +38,44 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # 关键改动：显式指定 Gradle 8.9，不依赖项目里的 wrapper
       - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
           cache-read-only: false
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK packages
+      # 不再使用 android-actions/setup-android，
+      # 直接用 runner 预装 sdkmanager，避免其内部 licenses 交互卡死
+      - name: Accept SDK licenses & install packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install \
+          set -e
+          if [ -z "${ANDROID_HOME:-}" ]; then
+            echo "::error::ANDROID_HOME 未设置"
+            exit 1
+          fi
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "::error::找不到 sdkmanager"
+            exit 1
+          fi
+          echo "sdkmanager: $SDKMANAGER"
+          "$SDKMANAGER" --version || true
+
+          # 连续喂 y，全部 license 一次接受
+          printf 'y\n%.0s' $(seq 1 200) | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+
+          # 安装编译所需的三个包（license 已接受，不再交互）
+          "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
+
+          echo "----- installed packages -----"
+          ls "$ANDROID_HOME/platforms"
+          ls "$ANDROID_HOME/build-tools"
 
       - name: Materialize keystore
         env:
@@ -85,7 +106,6 @@ jobs:
           echo "version_name=$VN" >> "$GITHUB_OUTPUT"
           echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
-      # 关键改动：用 gradle 命令，不用 ./gradlew
       - name: Build Release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
