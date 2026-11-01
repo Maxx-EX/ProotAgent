@@ -69,6 +69,11 @@ class ProotManager(private val nativeLibDir: String) {
         try {
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
+            
+            // 【核心修复】将 nativeLibDir 加入环境变量，让 proot 能找到 libtalloc.so
+            val env = pb.environment()
+            env["LD_LIBRARY_PATH"] = nativeLibDir
+            
             val process = pb.start()
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             var line: String?
