@@ -17,7 +17,8 @@ data class ChatItem(
 ) { enum class Type { USER, AI, PROGRESS } }
 
 data class UiState(
-    val messages: List<ChatItem> = emptyList(), val isGenerating: Boolean = false,
+    val messages: List<ChatItem> = emptyList(), 
+    val isGenerating: Boolean = false, 
     val inputText: String = "", 
     val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
     val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备",
@@ -40,12 +41,21 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         checkUpdate()
         checkEnv()
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 AndroidLinuxAI 容器调度 Agent。请先点击顶部进入环境管理准备 Linux 容器，然后输入指令。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！请先点击顶部准备环境。"))) }
     }
 
     fun checkEnv() {
         val installed = rootfsManager.isInstalled()
         _uiState.update { it.copy(isEnvReady = installed, envStatus = if (installed) "环境已就绪" else "未准备") }
+    }
+
+    fun installDeps() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGenerating = true) }
+            val cmd = "apk update && apk add python3 py3-pip nodejs npm git curl build-base"
+            prootManager.executeCommand(cmd).collect { _ -> }
+            _uiState.update { it.copy(isGenerating = false) }
+        }
     }
 
     fun prepareEnvironment() {
@@ -57,6 +67,11 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             }
             checkEnv()
         }
+    }
+
+    fun stopGeneration() {
+        agentRepo.stopGeneration()
+        _uiState.update { it.copy(isGenerating = false) }
     }
 
     fun loadHistory() {
@@ -83,9 +98,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {}
     }
 
-    fun deleteHistory(id: Long) {
-        viewModelScope.launch { historyRepo.deleteChat(id); loadHistory() }
-    }
+    fun deleteHistory(id: Long) { viewModelScope.launch { historyRepo.deleteChat(id); loadHistory() } }
 
     fun checkUpdate() {
         viewModelScope.launch {
@@ -96,37 +109,53 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissUpdate() = _uiState.update { it.copy(updateInfo = null) }
-
     fun updateInput(text: String) = _uiState.update { it.copy(inputText = text) }
 
     fun sendMessage() {
-        if (!_uiState.value.isEnvReady) return
+        if (!_uiState.value.isEnvReady || _uiState.value.isGenerating) return
         val prompt = _uiState.value.inputText.trim()
-        if (prompt.isEmpty() || _uiState.value.isGenerating) return
+        if (prompt.isEmpty()) return
+        
         val userMsg = ChatItem(type = ChatItem.Type.USER, text = prompt)
-        val progressId = System.currentTimeMillis() + 1
-        _uiState.update { it.copy(messages = it.messages + userMsg + ChatItem(id = progressId, type = ChatItem.Type.PROGRESS, text = "正在思考…"), inputText = "", isGenerating = true) }
+        val aiMsgId = System.currentTimeMillis() + 1
+        val progressId = System.currentTimeMillis() + 2
+        
+        // 任务锁死：一旦发送，锁死输入框和发送按钮
+        _uiState.update { it.copy(
+            messages = it.messages + userMsg + ChatItem(id = aiMsgId, type = ChatItem.Type.AI, text = "") + ChatItem(id = progressId, type = ChatItem.Type.PROGRESS, text = "正在思考…"),
+            inputText = "", isGenerating = true
+        ) }
 
         viewModelScope.launch {
             agentRepo.runAgent(prompt).collect { event ->
                 when (event) {
-                    is AgentEvent.Text -> _uiState.update { state -> state.copy(messages = state.messages + ChatItem(type = ChatItem.Type.AI, text = event.text)) }
-                    is AgentEvent.Progress -> updateProgressMsg(progressId, event.summary, event.log)
-                    is AgentEvent.Error -> updateProgressMsg(progressId, "发生错误", event.message)
+                    is AgentEvent.Text -> {
+                        _uiState.update { state ->
+                            val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it }
+                            state.copy(messages = updated)
+                        }
+                    }
+                    is AgentEvent.Progress -> {
+                        _uiState.update { state ->
+                            val updated = state.messages.map { msg ->
+                                if (msg.id == progressId) msg.copy(text = event.summary, details = msg.details.toMutableList().apply { if (event.log.isNotEmpty()) add(event.log); if (size > 30) removeAt(0) })
+                                else msg
+                            }
+                            state.copy(messages = updated)
+                        }
+                    }
+                    is AgentEvent.Error -> {
+                        _uiState.update { state ->
+                            val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it }
+                            state.copy(messages = updated)
+                        }
+                    }
+                    AgentEvent.Done -> {
+                        _uiState.update { it.copy(isGenerating = false) }
+                        saveCurrentChat()
+                    }
                 }
             }
-            _uiState.update { it.copy(isGenerating = false) }
-            saveCurrentChat()
-        }
-    }
-
-    private fun updateProgressMsg(id: Long, summary: String, log: String) {
-        _uiState.update { state ->
-            val updated = state.messages.map { msg ->
-                if (msg.id == id) msg.copy(text = summary, details = msg.details.toMutableList().apply { if (log.isNotEmpty()) add(log); if (size > 30) removeAt(0) })
-                else msg
-            }
-            state.copy(messages = updated)
         }
     }
 }

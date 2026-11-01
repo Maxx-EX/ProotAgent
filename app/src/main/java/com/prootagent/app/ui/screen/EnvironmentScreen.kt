@@ -27,27 +27,22 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
         containerColor = glass.bgStart,
         topBar = {
             TopAppBar(
-                title = { Text("环境管理", color = glass.textPrimary) },
+                title = { Text("工作环境管理", color = glass.textPrimary) },
                 navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null, tint = glass.textPrimary) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = glass.bgStart)
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding).padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.fillMaxWidth().liquidGlass().padding(20.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("Alpine Linux 容器", color = glass.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Alpine Linux", color = glass.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    Text(state.envStatus, color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 14.sp)
-                    
+                    Text(state.envStatus, color = if (state.isEnvReady) AccentTeal else glass.textSecondary)
                     if (!state.isEnvReady && state.envProgress in 1..99) {
                         Spacer(Modifier.height(16.dp))
                         LinearProgressIndicator(progress = { state.envProgress / 100f }, modifier = Modifier.fillMaxWidth(), color = AccentBlue)
                     }
-                    
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = { if (!state.isEnvReady) viewModel.prepareEnvironment() },
@@ -55,8 +50,22 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = if (state.isEnvReady) glass.glassBg else AccentBlue),
                         shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (state.isEnvReady) "工作环境已就绪" else "一键准备环境", color = if (state.isEnvReady) glass.textSecondary else glass.bgStart, fontWeight = FontWeight.Bold)
+                    ) { Text(if (state.isEnvReady) "环境已就绪" else "一键准备 Rootfs") }
+                }
+            }
+            
+            if (state.isEnvReady) {
+                Box(Modifier.fillMaxWidth().liquidGlass().padding(20.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("开发组件", color = AccentBlue, fontWeight = FontWeight.Bold)
+                        Text("安装 Python, Node, Git 等", color = glass.textSecondary, fontSize = 12.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { viewModel.installDeps() },
+                            enabled = !state.isGenerating,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)
+                        ) { Text(if (state.isGenerating) "正在安装中..." else "一键安装运行环境") }
                     }
                 }
             }

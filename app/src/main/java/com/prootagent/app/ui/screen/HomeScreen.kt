@@ -34,8 +34,8 @@ import com.prootagent.app.ui.theme.*
 fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
-    val clipboard = LocalClipboardManager.current
     val glass = LocalGlassColors.current
+    val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(state.messages.size) { if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1) }
 
@@ -47,7 +47,7 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { navController.navigate("env") }) {
                         Icon(Icons.Filled.Computer, null, tint = if (state.isEnvReady) AccentTeal else glass.textSecondary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(if (state.isEnvReady) "环境已就绪" else "点击准备环境", color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 14.sp)
+                        Text(if (state.isEnvReady) "环境已就绪" else "未准备环境", color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 14.sp)
                     }
                 },
                 actions = {
@@ -59,22 +59,24 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
             )
         },
         bottomBar = {
-            Row(Modifier.fillMaxWidth().background(glass.bgStart.copy(alpha = 0.95f)).padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(glass.bgStart.copy(alpha = 0.95f)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = state.inputText, onValueChange = viewModel::updateInput,
-                    modifier = Modifier.weight(1f), placeholder = { Text("输入指令…", color = glass.textSecondary, fontSize = 14.sp) },
+                    enabled = !state.isGenerating, // 任务锁死
+                    modifier = Modifier.weight(1f), placeholder = { Text(if (state.isGenerating) "AI 运行中，请稍候..." else "输入指令…", color = glass.textSecondary, fontSize = 14.sp) },
                     shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentBlue, unfocusedBorderColor = glass.border,
-                        focusedContainerColor = glass.glassBg, unfocusedContainerColor = glass.glassBg,
-                        focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary
-                    ), maxLines = 3
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = glass.border, focusedContainerColor = glass.glassBg, unfocusedContainerColor = glass.glassBg, focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary), maxLines = 3
                 )
                 Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = viewModel::sendMessage, enabled = state.isEnvReady && !state.isGenerating && state.inputText.isNotBlank(),
-                    modifier = Modifier.background(if (state.isEnvReady) AccentBlue else glass.glassBg, RoundedCornerShape(50)).size(44.dp)
-                ) { Icon(Icons.Filled.Send, null, tint = if (state.isEnvReady) glass.bgStart else glass.textSecondary, modifier = Modifier.size(20.dp)) }
+                if (state.isGenerating) {
+                    IconButton(onClick = viewModel::stopGeneration, modifier = Modifier.background(Color.Red, RoundedCornerShape(50)).size(44.dp)) {
+                        Icon(Icons.Filled.Stop, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                } else {
+                    IconButton(onClick = viewModel::sendMessage, enabled = state.isEnvReady && state.inputText.isNotBlank(), modifier = Modifier.background(if (state.isEnvReady) AccentBlue else glass.glassBg, RoundedCornerShape(50)).size(44.dp)) {
+                        Icon(Icons.Filled.Send, null, tint = if (state.isEnvReady) glass.bgStart else glass.textSecondary, modifier = Modifier.size(20.dp))
+                    }
+                }
             }
         }
     ) { padding ->
@@ -106,8 +108,21 @@ fun UserBubble(text: String, onCopy: () -> Unit) {
 fun AiBubble(text: String, onCopy: () -> Unit) {
     val glass = LocalGlassColors.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-        Box(Modifier.widthIn(max = 300.dp).liquidGlass().clickable { onCopy() }.padding(12.dp)) {
-            Text(text, color = glass.textPrimary, fontSize = 14.sp)
+        Box(Modifier.widthIn(max = 320.dp).liquidGlass().clickable { onCopy() }.padding(12.dp)) {
+            // 简版 Markdown：识别代码块 ``` 做高亮处理
+            val parts = text.split("```")
+            Column {
+                parts.forEachIndexed { index, part ->
+                    if (index % 2 == 1) {
+                        // 代码块
+                        Box(Modifier.fillMaxWidth().background(Color(0xFF1E1E2E), RoundedCornerShape(8.dp)).padding(8.dp)) {
+                            Text(part.trim('\n'), color = Color(0xFFA6E3A1), fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        }
+                    } else {
+                        if (part.isNotBlank()) Text(part, color = glass.textPrimary, fontSize = 14.sp)
+                    }
+                }
+            }
         }
     }
 }
