@@ -41,13 +41,15 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
     }
 
-    if (state.updateInfo != null) {
+    // 修复智能转换问题：使用局部变量接收
+    val updateInfo = state.updateInfo
+    if (updateInfo != null) {
         AlertDialog(
             onDismissRequest = { if (!state.isDownloading) viewModel.dismissUpdate() },
-            title = { Text("发现新版本 ${state.updateInfo.versionName}") },
+            title = { Text("发现新版本 ${updateInfo.versionName}") },
             text = {
                 Column {
-                    Text(state.updateInfo.changelog, color = TextSecondary, fontSize = 12.sp, maxLines = 5)
+                    Text(updateInfo.changelog, color = TextSecondary, fontSize = 12.sp, maxLines = 5)
                     if (state.isDownloading) {
                         Spacer(Modifier.height(16.dp))
                         LinearProgressIndicator(progress = { state.downloadProgress / 100f }, modifier = Modifier.fillMaxWidth(), color = AccentBlue)
