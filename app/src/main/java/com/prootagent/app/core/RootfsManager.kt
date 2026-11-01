@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.Environment
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -16,9 +17,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class RootfsManager(private val context: Context) {
-    private val filesDir = context.filesDir
-    private val rootfsDir = File(filesDir, "rootfs")
-    private val rootfsTar = File(filesDir, "rootfs.tar.gz")
+    private val privateRootfsDir = File(context.filesDir, "rootfs")
     private val channelId = "download_channel"
     private val notificationId = 2001
 
@@ -29,19 +28,40 @@ class RootfsManager(private val context: Context) {
         }
     }
 
-    fun isInstalled(): Boolean { val shFile = File(rootfsDir, "bin/sh"); val envFile = File(rootfsDir, "usr/bin/env"); return (shFile.exists() && shFile.length() > 0) || (envFile.exists() && envFile.length() > 0) }
-    fun deleteRootfs() { rootfsDir.deleteRecursively(); rootfsTar.delete() }
+    // 查找有效的 rootfs 路径
+    fun getValidRootfsPath(): String? {
+        // 1. 私有目录
+        if (isRootfsValid(privateRootfsDir)) return privateRootfsDir.absolutePath
+        // 2. 外部常见目录 (用户截图里的路径)
+        val externalPaths = listOf(
+            "/storage/emulated/0/ai1",
+            "/storage/emulated/0/Download/ai1",
+            "/storage/emulated/0/rootfs"
+        )
+        for (path in externalPaths) {
+            if (isRootfsValid(File(path))) return path
+        }
+        return null
+    }
+
+    private fun isRootfsValid(dir: File): Boolean {
+        if (!dir.exists()) return false
+        val sh = File(dir, "bin/sh")
+        val bash = File(dir, "bin/bash")
+        return (sh.exists() && sh.length() > 0) || (bash.exists() && bash.length() > 0)
+    }
+
+    fun isInstalled(): Boolean = getValidRootfsPath() != null
 
     fun prepareEnvironment(sourceType: Int, osType: Int): Flow<Pair<Int, String>> = flow {
         if (isInstalled()) { emit(Pair(100, "环境已就绪")); return@flow }
-        rootfsDir.mkdirs()
+        privateRootfsDir.mkdirs()
+        val rootfsTar = File(context.filesDir, "rootfs.tar.gz")
         var downloaded = 0L
 
-        // osType: 0 = Alpine, 1 = Ubuntu 22.04
         val urlStr = when (osType) {
             0 -> when (sourceType) {
                 1 -> "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
-                2 -> "https://mirrors.aliyun.com/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
                 else -> "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
             }
             1 -> when (sourceType) {
@@ -74,16 +94,11 @@ class RootfsManager(private val context: Context) {
         }
 
         emit(Pair(50, "下载完成，正在解压..."))
-        updateNotification(50, "解压中，请稍候...")
-        
         try {
-            extractTarGz(rootfsTar, rootfsDir)
-            // 关键：修复 Ubuntu 的 DNS 问题，否则无法联网
-            File(rootfsDir, "etc/resolv.conf").writeText("nameserver 8.8.8.8\nnameserver 114.114.114.114\n")
-            File(rootfsDir, ".installed").createNewFile()
+            extractTarGz(rootfsTar, privateRootfsDir)
+            File(privateRootfsDir, "etc/resolv.conf").writeText("nameserver 8.8.8.8\nnameserver 114.114.114.114\n")
             rootfsTar.delete()
             emit(Pair(100, "环境准备完毕"))
-            updateNotification(100, "环境准备完毕")
         } catch (e: Exception) {
             emit(Pair(-1, "解压失败: ${e.message}"))
         }

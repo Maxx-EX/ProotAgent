@@ -57,7 +57,7 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
         currentEventSource = null
     }
 
-    fun runAgent(prompt: String): Flow<AgentEvent> = channelFlow {
+    fun runAgent(prompt: String, rootfsPath: String): Flow<AgentEvent> = channelFlow {
         val url = settings.apiUrl.first().trimEnd('/') + "/chat/completions"
         val key = settings.apiKey.first()
         if (key.isBlank()) {
@@ -154,7 +154,7 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                     send(AgentEvent.Progress("执行命令", cmd))
 
                     val output = StringBuilder()
-                    prootManager.executeCommand(cmd).collect { logLine ->
+                    prootManager.executeCommand(cmd, rootfsPath).collect { logLine ->
                         output.append(logLine).append("\n")
                         send(AgentEvent.Progress("运行中", logLine))
                     }

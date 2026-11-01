@@ -9,32 +9,30 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 
-class ProotManager(private val nativeLibDir: String, private val filesDir: File) {
+class ProotManager(private val nativeLibDir: String) {
     private val prootBin = File(nativeLibDir, "libproot.so")
-    private val rootfsDir = File(filesDir, "rootfs")
 
-    fun executeCommand(command: String): Flow<String> = flow {
+    fun executeCommand(command: String, rootfsPath: String): Flow<String> = flow {
         if (!prootBin.exists()) {
             emit("❌ 未找到 Proot 二进制: ${prootBin.absolutePath}")
             return@flow
         }
-        
+        val rootfsDir = File(rootfsPath)
+        if (!rootfsDir.exists()) {
+            emit("❌ 未找到 Rootfs 目录: $rootfsPath")
+            return@flow
+        }
+
         val cmd = listOf(
             prootBin.absolutePath,
-            "--link2symlink",
-            "-0", // 模拟 root
+            "--link2symlink", "-0",
             "-r", rootfsDir.absolutePath,
-            "-b", "/sdcard",
-            "-b", "/dev",
-            "-b", "/proc",
-            "-b", "/sys",
-            // 关键：挂载宿主机的 DNS 配置，确保 Ubuntu 能上网
-            "-b", "/etc/resolv.conf", 
+            "-b", "/sdcard", "-b", "/dev", "-b", "/proc", "-b", "/sys",
+            "-b", "/etc/resolv.conf", // DNS 挂载
             "/usr/bin/env", "-i",
             "HOME=/root",
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "TERM=xterm-256color",
-            "LANG=C.UTF-8",
+            "TERM=xterm-256color", "LANG=C.UTF-8",
             "/bin/sh", "-c", command
         )
 

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 data class ChatItem(
     val id: Long = System.currentTimeMillis(), val type: Type, val text: String = "",
@@ -21,14 +22,15 @@ data class UiState(
     val isGenerating: Boolean = false, 
     val inputText: String = "", 
     val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
-    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "检测中...",
+    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备",
     val historyList: List<HistoryRecord> = emptyList(),
-    val currentOsType: Int = 0 // 0: Alpine, 1: Ubuntu
+    val currentOsType: Int = 0,
+    val activeRootfsPath: String = ""
 )
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
-    private val prootManager = ProotManager(app.applicationInfo.nativeLibraryDir, app.filesDir)
+    private val prootManager = ProotManager(app.applicationInfo.nativeLibraryDir)
     private val rootfsManager = RootfsManager(app)
     private val historyRepo = ChatHistoryRepository(app)
     private val agentRepo = AgentRepository(settingsRepo, prootManager)
@@ -42,32 +44,40 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         checkUpdate()
         checkEnv()
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。如果你已经提前放置了 Rootfs 文件，系统会自动识别并直接进入工作模式。如果没有，请点击顶部准备环境。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。系统会自动扫描内部及 /sdcard/ai1 目录下的 Linux 环境。"))) }
     }
 
-    // 深度检查环境
     fun checkEnv() {
         viewModelScope.launch {
-            val installed = rootfsManager.isInstalled()
+            val path = rootfsManager.getValidRootfsPath()
             val osType = settingsRepo.osType.first()
             _uiState.update { it.copy(
-                isEnvReady = installed, 
-                envStatus = if (installed) "环境已就绪" else "未准备环境",
-                currentOsType = osType
+                isEnvReady = path != null, 
+                envStatus = if (path != null) "环境已就绪: $path" else "未准备",
+                currentOsType = osType,
+                activeRootfsPath = path ?: ""
             ) }
+        }
+    }
+
+    // 让用户手动指定路径（用于 SAF 或直接路径）
+    fun setManualPath(path: String) {
+        val file = File(path)
+        if (File(file, "bin/sh").exists() || File(file, "bin/bash").exists()) {
+            _uiState.update { it.copy(isEnvReady = true, envStatus = "已识别手动目录: $path", activeRootfsPath = path) }
         }
     }
 
     fun installDeps() {
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true) }
-            val osType = settingsRepo.osType.first()
-            val cmd = if (osType == 1) {
+            val path = _uiState.value.activeRootfsPath
+            val cmd = if (_uiState.value.currentOsType == 1) {
                 "apt update && apt install -y python3 python3-pip git curl build-essential"
             } else {
                 "apk update && apk add python3 py3-pip nodejs npm git curl build-base"
             }
-            prootManager.executeCommand(cmd).collect { _ -> }
+            prootManager.executeCommand(cmd, path).collect { _ -> }
             _uiState.update { it.copy(isGenerating = false) }
         }
     }
@@ -121,10 +131,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun updateInput(text: String) = _uiState.update { it.copy(inputText = text) }
 
     fun sendMessage() {
-        // 发送前再次强制检查一次，防止用户中途自己放了文件进去没刷新
         checkEnv()
         if (!_uiState.value.isEnvReady || _uiState.value.isGenerating) return
-        
         val prompt = _uiState.value.inputText.trim()
         if (prompt.isEmpty()) return
         
@@ -138,7 +146,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         ) }
 
         viewModelScope.launch {
-            agentRepo.runAgent(prompt).collect { event ->
+            agentRepo.runAgent(prompt, _uiState.value.activeRootfsPath).collect { event ->
                 when (event) {
                     is AgentEvent.Text -> _uiState.update { state ->
                         val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it }

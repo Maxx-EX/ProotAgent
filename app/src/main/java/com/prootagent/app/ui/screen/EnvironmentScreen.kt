@@ -1,4 +1,6 @@
 package com.prootagent.app.ui.screen
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,12 +19,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.prootagent.app.ui.AgentViewModel
 import com.prootagent.app.ui.theme.*
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
     val glass = LocalGlassColors.current
+    val context = LocalContext.current
+
+    val dirLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            // 简单提取 path（注意：真实 SAF 路径转换比较复杂，这里为了简单直接解析）
+            val path = it.path?.replace("/tree/primary:", "/storage/emulated/0/")?.replace("/tree/", "/storage/emulated/0/")
+            if (path != null) viewModel.setManualPath(path)
+        }
+    }
 
     Scaffold(
         containerColor = glass.bgStart,
@@ -41,19 +54,37 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
                         color = glass.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(state.envStatus, color = if (state.isEnvReady) AccentTeal else glass.textSecondary)
+                    Text(state.envStatus, color = if (state.isEnvReady) AccentTeal else glass.textSecondary, fontSize = 12.sp)
+                    
                     if (!state.isEnvReady && state.envProgress in 1..99) {
                         Spacer(Modifier.height(16.dp))
                         LinearProgressIndicator(progress = { state.envProgress / 100f }, modifier = Modifier.fillMaxWidth(), color = AccentBlue)
                     }
+                    
                     Spacer(Modifier.height(24.dp))
-                    Button(
-                        onClick = { if (!state.isEnvReady) viewModel.prepareEnvironment() },
-                        enabled = !state.isEnvReady && state.envProgress == 0,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (state.isEnvReady) glass.glassBg else AccentBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text(if (state.isEnvReady) "环境已就绪" else "一键准备 Rootfs") }
+                    if (!state.isEnvReady) {
+                        Button(
+                            onClick = { viewModel.prepareEnvironment() },
+                            enabled = state.envProgress == 0,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text("一键下载并准备环境") }
+
+                        Spacer(Modifier.height(12.dp))
+                        
+                        // 添加手动导入按钮
+                        OutlinedButton(
+                            onClick = { dirLauncher.launch(null) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AccentTeal)
+                        ) {
+                            Text("已有文件？手动选择 Rootfs 目录", color = AccentTeal)
+                        }
+                    } else {
+                        Text("✅ 可以开始对话了", color = AccentTeal, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             
@@ -61,10 +92,7 @@ fun EnvironmentScreen(navController: NavController, viewModel: AgentViewModel = 
                 Box(Modifier.fillMaxWidth().liquidGlass().padding(20.dp)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text("开发组件", color = AccentBlue, fontWeight = FontWeight.Bold)
-                        Text(
-                            if (state.currentOsType == 1) "安装 Python, Git 等 (apt)" else "安装 Python, Git 等 (apk)",
-                            color = glass.textSecondary, fontSize = 12.sp
-                        )
+                        Text("安装 Python, Git 等", color = glass.textSecondary, fontSize = 12.sp)
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = { viewModel.installDeps() },
