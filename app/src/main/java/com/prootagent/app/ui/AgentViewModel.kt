@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 data class ChatItem(
     val id: Long = System.currentTimeMillis(), val type: Type, val text: String = "",
@@ -24,7 +23,7 @@ data class UiState(
     val updateInfo: AppUpdateInfo? = null, val isEnvReady: Boolean = false, 
     val envStatus: String = "未准备", val activeRootfsPath: String = "",
     val historyList: List<HistoryRecord> = emptyList(),
-    val workMode: Int = 0 // 0: Proot, 1: SSH Termux
+    val workMode: Int = 0
 )
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
@@ -48,7 +47,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             checkEnv()
         }
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。你可以切换工作模式：内置 Proot 或 Termux SSH。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！请确保已经把 Ubuntu 解压在 /storage/emulated/0/ai1 或直接放入压缩包，系统会自动识别。"))) }
     }
 
     fun toggleWorkMode(mode: Int) {
@@ -60,14 +59,16 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun checkEnv() {
         viewModelScope.launch {
             if (_uiState.value.workMode == 1) {
-                // SSH 模式不需要检测本地环境
                 _uiState.update { it.copy(isEnvReady = true, envStatus = "已连接 Termux SSH") }
             } else {
-                val path = rootfsManager.getValidRootfsPath()
+                val foundDir = prootManager.findRootfs() 
+                val path = foundDir?.absolutePath ?: "/storage/emulated/0/ai1"
+                val isExist = foundDir != null || java.io.File("/storage/emulated/0/ai1").exists()
+                
                 _uiState.update { it.copy(
-                    isEnvReady = path != null, 
-                    envStatus = if (path != null) "环境已就绪: $path" else "未准备",
-                    activeRootfsPath = path ?: ""
+                    isEnvReady = isExist, 
+                    envStatus = if (isExist) "环境已就绪: $path" else "未准备",
+                    activeRootfsPath = path
                 ) }
             }
         }
@@ -153,17 +154,16 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         ) }
 
         viewModelScope.launch {
-            // 执行器分发
+            // 关键修复：提前获取 SSH 配置，避免在非 suspend Lambda 中调用挂起函数
+            val host = settingsRepo.sshHost.first()
+            val port = settingsRepo.sshPort.first()
+            val user = settingsRepo.sshUser.first()
+            val pass = settingsRepo.sshPass.first()
+
             val cmdExecutor: (String) -> Flow<String> = if (_uiState.value.workMode == 0) {
                 { cmd -> prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath) }
             } else {
-                { cmd -> 
-                    val host = settingsRepo.sshHost.first()
-                    val port = settingsRepo.sshPort.first()
-                    val user = settingsRepo.sshUser.first()
-                    val pass = settingsRepo.sshPass.first()
-                    sshManager.executeCommand(host, port, user, pass, cmd)
-                }
+                { cmd -> sshManager.executeCommand(host, port, user, pass, cmd) }
             }
 
             agentRepo.runAgent(prompt, cmdExecutor).collect { event ->
