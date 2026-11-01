@@ -91,7 +91,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     
-    // 核心工具与 SSH
+    // 核心工具、SSH 与加密
     implementation(libs.commons.compress)
     implementation(libs.sshj)
     implementation(libs.bcprov.jdk18on)
