@@ -39,6 +39,7 @@ fun SettingsScreen(navController: NavController) {
     var themeMode by remember { mutableStateOf(0) }
     var downloadUri by remember { mutableStateOf("") }
     var rootfsSource by remember { mutableStateOf(0) }
+    var osType by remember { mutableStateOf(0) }
 
     val dirLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         uri?.let {
@@ -51,6 +52,7 @@ fun SettingsScreen(navController: NavController) {
         url = repo.apiUrl.first(); key = repo.apiKey.first(); model = repo.apiModel.first()
         updateSource = repo.updateSource.first(); themeMode = repo.themeMode.first()
         downloadUri = repo.downloadUri.first(); rootfsSource = repo.rootfsSource.first()
+        osType = repo.osType.first()
     }
 
     val glass = LocalGlassColors.current
@@ -67,7 +69,6 @@ fun SettingsScreen(navController: NavController) {
     ) { padding ->
         Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(glass.bgStart, glass.bgEnd))).padding(padding).verticalScroll(scrollState).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             
-            // 1. API 配置
             Text("大模型 API 配置", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Base URL") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary))
             OutlinedTextField(value = key, onValueChange = { key = it }, label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary))
@@ -75,7 +76,6 @@ fun SettingsScreen(navController: NavController) {
 
             HorizontalDivider(color = glass.border)
 
-            // 2. 主题模式
             Text("外观主题", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 listOf(0 to "跟随系统", 1 to "深色", 2 to "浅色").forEach { (mode, label) ->
@@ -88,7 +88,6 @@ fun SettingsScreen(navController: NavController) {
 
             HorizontalDivider(color = glass.border)
 
-            // 3. 存储与下载目录
             Text("工作空间目录", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
             Text(if (downloadUri.isEmpty()) "当前使用私有目录" else "已自定义: $downloadUri", color = glass.textSecondary, fontSize = 12.sp, maxLines = 1)
             Button(onClick = { dirLauncher.launch(null) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AccentTeal)) {
@@ -97,9 +96,18 @@ fun SettingsScreen(navController: NavController) {
 
             HorizontalDivider(color = glass.border)
 
-            // 4. 环境源配置
-            Text("环境镜像源", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
-            listOf(0 to "Alpine 官方源 (海外)", 1 to "清华大学镜像 (TUNA)", 2 to "阿里云镜像").forEach { (src, label) ->
+            Text("Linux 容器类型", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                listOf(0 to "Alpine (轻量)", 1 to "Ubuntu (完整)").forEach { (type, label) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { osType = type }) {
+                        RadioButton(selected = osType == type, onClick = { osType = type }, colors = RadioButtonDefaults.colors(selectedColor = AccentTeal))
+                        Text(label, color = glass.textPrimary)
+                    }
+                }
+            }
+
+            Text("镜像源设置", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
+            listOf(0 to "官方源 (海外)", 1 to "清华大学镜像 (TUNA)", 2 to "阿里云镜像").forEach { (src, label) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { rootfsSource = src }) {
                     RadioButton(selected = rootfsSource == src, onClick = { rootfsSource = src }, colors = RadioButtonDefaults.colors(selectedColor = AccentTeal))
                     Text(label, color = glass.textPrimary)
@@ -108,7 +116,6 @@ fun SettingsScreen(navController: NavController) {
 
             HorizontalDivider(color = glass.border)
 
-            // 5. 更新源
             Text("软件更新源", color = AccentBlue, style = MaterialTheme.typography.titleMedium)
             listOf(0 to "GitHub 官方", 1 to "国内加速镜像").forEach { (src, label) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { updateSource = src }) {
@@ -127,6 +134,7 @@ fun SettingsScreen(navController: NavController) {
                         repo.saveThemeMode(themeMode)
                         repo.saveDownloadUri(downloadUri)
                         repo.saveRootfsSource(rootfsSource)
+                        repo.saveOsType(osType)
                         navController.popBackStack() 
                     } 
                 },

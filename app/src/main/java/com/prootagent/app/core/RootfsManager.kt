@@ -1,5 +1,10 @@
 package com.prootagent.app.core
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -10,27 +15,44 @@ import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 
-class RootfsManager(private val filesDir: File) {
+class RootfsManager(private val context: Context) {
+    private val filesDir = context.filesDir
     private val rootfsDir = File(filesDir, "rootfs")
     private val rootfsTar = File(filesDir, "rootfs.tar.gz")
+    private val channelId = "download_channel"
+    private val notificationId = 2001
+
+    init {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "环境下载", NotificationManager.IMPORTANCE_LOW)
+            context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
 
     fun isInstalled(): Boolean = File(rootfsDir, ".installed").exists()
-    
+
     fun deleteRootfs() {
         rootfsDir.deleteRecursively()
         rootfsTar.delete()
     }
 
-    fun prepareEnvironment(sourceType: Int): Flow<Pair<Int, String>> = flow {
+    fun prepareEnvironment(sourceType: Int, osType: Int): Flow<Pair<Int, String>> = flow {
         if (isInstalled()) { emit(Pair(100, "环境已就绪")); return@flow }
         rootfsDir.mkdirs()
         var downloaded = 0L
 
-        // 镜像源选择
-        val urlStr = when (sourceType) {
-            1 -> "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
-            2 -> "https://mirrors.aliyun.com/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
-            else -> "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
+        // osType: 0 = Alpine, 1 = Ubuntu
+        val urlStr = when (osType) {
+            0 -> when (sourceType) {
+                1 -> "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
+                2 -> "https://mirrors.aliyun.com/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
+                else -> "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.1-aarch64.tar.gz"
+            }
+            1 -> when (sourceType) {
+                1 -> "https://mirrors.tuna.tsinghua.edu.cn/ubuntu-cdimage/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-arm64.tar.gz"
+                else -> "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-arm64.tar.gz"
+            }
+            else -> return@flow
         }
 
         try {
@@ -47,18 +69,39 @@ class RootfsManager(private val filesDir: File) {
                 downloaded += bytesRead
                 val progress = if (totalSize > 0) ((downloaded * 50) / totalSize).toInt() else 0
                 emit(Pair(progress, "下载 Rootfs: $progress%"))
+                updateNotification(progress, "正在下载系统环境...")
             }
             output.close(); input.close()
-        } catch (e: Exception) { emit(Pair(-1, "下载失败: ${e.message}")); return@flow }
+        } catch (e: Exception) {
+            emit(Pair(-1, "下载失败: ${e.message}"))
+            return@flow
+        }
 
         emit(Pair(50, "下载完成，正在解压..."))
+        updateNotification(50, "解压中，请稍候...")
+        
         try {
             extractTarGz(rootfsTar, rootfsDir)
             File(rootfsDir, ".installed").createNewFile()
             rootfsTar.delete()
             emit(Pair(100, "环境准备完毕"))
-        } catch (e: Exception) { emit(Pair(-1, "解压失败: ${e.message}")) }
+            updateNotification(100, "环境准备完毕")
+        } catch (e: Exception) {
+            emit(Pair(-1, "解压失败: ${e.message}"))
+        }
     }.flowOn(Dispatchers.IO)
+
+    private fun updateNotification(progress: Int, text: String) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setContentTitle("ProotAgent 环境准备")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setProgress(100, progress, false)
+            .setOngoing(progress < 100)
+            .build()
+        nm.notify(notificationId, notification)
+    }
 
     private fun extractTarGz(tarGzFile: File, destDir: File) {
         GzipCompressorInputStream(BufferedInputStream(FileInputStream(tarGzFile))).use { gzipIn ->
