@@ -1,5 +1,4 @@
 package com.prootagent.app.ui
-
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,43 +19,27 @@ import com.prootagent.app.ui.screen.SettingsScreen
 import com.prootagent.app.ui.theme.ProotAgentTheme
 
 class MainActivity : ComponentActivity() {
-    
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> startKeepAliveService() }
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> startKeepAliveService() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         checkPermissions()
-        
-        setContent {
-            ProotAgentTheme {
-                AppNav()
-            }
-        }
+        setContent { ProotAgentTheme { AppNav() } }
     }
 
     private fun checkPermissions() {
         val permissions = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-
-        if (permissions.isNotEmpty()) {
-            requestPermissionLauncher.launch(permissions.toTypedArray())
-        } else {
-            startKeepAliveService()
-        }
+        if (permissions.isNotEmpty()) requestPermissionLauncher.launch(permissions.toTypedArray()) else startKeepAliveService()
     }
 
     private fun startKeepAliveService() {
-        val intent = Intent(this, AgentForegroundService::class.java)
-        ContextCompat.startForegroundService(this, intent)
+        ContextCompat.startForegroundService(this, Intent(this, AgentForegroundService::class.java))
     }
 }
 

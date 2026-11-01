@@ -24,13 +24,9 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
 
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
+        ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-            }
+            cmake { cppFlags += "-std=c++17" }
         }
     }
 
@@ -59,10 +55,12 @@ android {
         }
     }
 
-    packaging {
-        jniLibs { useLegacyPackaging = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
     }
-    buildFeatures { compose = true }
+    
+    packaging { jniLibs { useLegacyPackaging = true } }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -76,9 +74,13 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.documentfile)
     implementation(libs.okhttp)

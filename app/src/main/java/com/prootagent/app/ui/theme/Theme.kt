@@ -1,5 +1,4 @@
 package com.prootagent.app.ui.theme
-
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,37 +15,19 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColors = darkColorScheme(
-    primary = AccentBlue,
-    secondary = AccentTeal,
-    background = LiquidBgStart,
-    surface = Color.Transparent,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary
+    primary = AccentBlue, secondary = AccentTeal, background = LiquidBgStart,
+    surface = Color.Transparent, onBackground = TextPrimary, onSurface = TextPrimary
 )
 
-// 液态玻璃修饰符
 fun Modifier.liquidGlass() = this
-    .background(
-        color = LiquidGlassBg,
-        shape = RoundedCornerShape(24.dp)
-    )
-    .border(
-        width = 1.dp,
-        brush = Brush.linearGradient(listOf(LiquidBorder, Color.Transparent)),
-        shape = RoundedCornerShape(24.dp)
-    )
+    .background(color = LiquidGlassBg, shape = RoundedCornerShape(24.dp))
+    .border(width = 1.dp, brush = Brush.linearGradient(listOf(LiquidBorder, Color.Transparent)), shape = RoundedCornerShape(24.dp))
 
 @Composable
 fun ProotAgentTheme(content: @Composable () -> Unit) {
     val view = LocalView.current
     if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-        }
+        SideEffect { WindowCompat.getInsetsController((view.context as Activity).window, view).isAppearanceLightStatusBars = false }
     }
-    MaterialTheme(
-        colorScheme = DarkColors,
-        content = content
-    )
+    MaterialTheme(colorScheme = DarkColors, content = content)
 }

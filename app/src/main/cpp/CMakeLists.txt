@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("prootagent")
-
 add_library(agent_guard SHARED agent_guard.cpp)
 find_library(log-lib log)
 target_link_libraries(agent_guard ${log-lib})

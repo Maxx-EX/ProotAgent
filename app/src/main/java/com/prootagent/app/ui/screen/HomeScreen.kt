@@ -1,5 +1,4 @@
 package com.prootagent.app.ui.screen
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -36,24 +35,12 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
 
-    // 自动滚动到底部
     LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.size - 1)
-        }
+        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
     }
 
-    // 更新弹窗
     if (state.updateMessage != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissUpdate,
-            title = { Text("发现更新") },
-            text = { Text(state.updateMessage!!) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissUpdate) { Text("知道了", color = AccentBlue) }
-            },
-            containerColor = LiquidBgStart
-        )
+        AlertDialog(onDismissRequest = viewModel::dismissUpdate, title = { Text("发现更新") }, text = { Text(state.updateMessage!!) }, confirmButton = { TextButton(onClick = viewModel::dismissUpdate) { Text("知道了", color = AccentBlue) } }, containerColor = LiquidBgStart)
     }
 
     Scaffold(
@@ -61,61 +48,32 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
         topBar = {
             TopAppBar(
                 title = { Text("ProotAgent", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "设置", tint = TextPrimary)
-                    }
-                },
+                actions = { IconButton(onClick = { navController.navigate("settings") }) { Icon(Icons.Filled.Settings, contentDescription = "设置", tint = TextPrimary) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LiquidBgStart.copy(alpha = 0.8f))
             )
         },
         bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(LiquidBgStart.copy(alpha = 0.9f))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(Modifier.fillMaxWidth().background(LiquidBgStart.copy(alpha = 0.9f)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
-                    value = state.inputText,
-                    onValueChange = viewModel::updateInput,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("输入指令执行…", color = TextSecondary) },
+                    value = state.inputText, onValueChange = viewModel::updateInput,
+                    modifier = Modifier.weight(1f), placeholder = { Text("输入指令执行…", color = TextSecondary) },
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentBlue,
-                        unfocusedBorderColor = LiquidBorder,
-                        focusedContainerColor = LiquidGlassBg,
-                        unfocusedContainerColor = LiquidGlassBg,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    maxLines = 3
+                        focusedBorderColor = AccentBlue, unfocusedBorderColor = LiquidBorder,
+                        focusedContainerColor = LiquidGlassBg, unfocusedContainerColor = LiquidGlassBg,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary
+                    ), maxLines = 3
                 )
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(
-                    onClick = viewModel::sendMessage,
-                    enabled = !state.isGenerating && state.inputText.isNotBlank(),
+                    onClick = viewModel::sendMessage, enabled = !state.isGenerating && state.inputText.isNotBlank(),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = AccentBlue, contentColor = LiquidBgStart)
-                ) {
-                    Icon(Icons.Filled.Send, contentDescription = "发送")
-                }
+                ) { Icon(Icons.Filled.Send, contentDescription = "发送") }
             }
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(LiquidBgStart, LiquidBgEnd)))
-                .padding(padding)
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(LiquidBgStart, LiquidBgEnd))).padding(padding)) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
                 items(state.messages, key = { it.id }) { msg ->
                     when (msg.type) {
                         ChatItem.Type.USER -> UserBubble(msg.text)
@@ -130,12 +88,8 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
 
 @Composable
 fun UserBubble(text: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Box(modifier = Modifier
-            .widthIn(max = 280.dp)
-            .background(AccentBlue, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
-            .padding(12.dp)
-        ) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Box(Modifier.widthIn(max = 280.dp).background(AccentBlue, RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)).padding(12.dp)) {
             Text(text, color = LiquidBgStart, style = MaterialTheme.typography.bodyMedium)
         }
     }
@@ -143,12 +97,8 @@ fun UserBubble(text: String) {
 
 @Composable
 fun AiBubble(text: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-        Box(modifier = Modifier
-            .widthIn(max = 300.dp)
-            .liquidGlass()
-            .padding(12.dp)
-        ) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Box(Modifier.widthIn(max = 300.dp).liquidGlass().padding(12.dp)) {
             Text(text, color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
         }
     }
@@ -158,14 +108,7 @@ fun AiBubble(text: String) {
 fun ProgressCard(msg: ChatItem) {
     var expanded by remember { mutableStateOf(msg.isExpanded) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "arrow")
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .liquidGlass()
-            .clickable { expanded = !expanded }
-            .padding(12.dp)
-    ) {
+    Box(Modifier.fillMaxWidth().liquidGlass().clickable { expanded = !expanded }.padding(12.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("⚙️ ${msg.text}", color = AccentTeal, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
@@ -173,20 +116,11 @@ fun ProgressCard(msg: ChatItem) {
             }
             Spacer(Modifier.height(4.dp))
             Text("共 ${msg.details.size} 条执行日志，点击查看详情", color = TextSecondary, fontSize = 12.sp)
-
             AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
+                Column(Modifier.padding(top = 8.dp)) {
                     HorizontalDivider(color = LiquidBorder)
                     Spacer(Modifier.height(8.dp))
-                    msg.details.forEach { detail ->
-                        Text(
-                            "> $detail",
-                            color = AccentBlue,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
+                    msg.details.forEach { Text("> $it", color = AccentBlue, fontFamily = FontFamily.Monospace, fontSize = 11.sp, modifier = Modifier.padding(vertical = 2.dp)) }
                 }
             }
         }
