@@ -5,8 +5,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.*
-import okhttp3.RequestBody.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -22,7 +25,10 @@ sealed class AgentEvent {
 }
 
 class AgentRepository(private val settings: SettingsRepository, private val prootManager: ProotManager) {
-    private val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
     private var currentEventSource: EventSource? = null
 
     private val systemPrompt = """
@@ -34,10 +40,13 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
     """.trimIndent()
 
     private val toolsJson = JSONArray().put(JSONObject().apply {
-        put("type", "function"); put("function", JSONObject().apply {
-            put("name", "execute_shell"); put("description", "Execute shell command in Proot.")
+        put("type", "function")
+        put("function", JSONObject().apply {
+            put("name", "execute_shell")
+            put("description", "Execute shell command in Proot.")
             put("parameters", JSONObject().apply {
-                put("type", "object"); put("properties", JSONObject().put("command", JSONObject().apply { put("type", "string") }))
+                put("type", "object")
+                put("properties", JSONObject().put("command", JSONObject().apply { put("type", "string") }))
                 put("required", JSONArray().put("command"))
             })
         })
@@ -51,28 +60,43 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
     fun runAgent(prompt: String): Flow<AgentEvent> = channelFlow {
         val url = settings.apiUrl.first().trimEnd('/') + "/chat/completions"
         val key = settings.apiKey.first()
-        if (key.isBlank()) { send(AgentEvent.Error("请先在设置中配置 API Key")); return@channelFlow }
+        if (key.isBlank()) {
+            send(AgentEvent.Error("请先在设置中配置 API Key"))
+            return@channelFlow
+        }
 
-        var messages = JSONArray().apply { 
+        var messages = JSONArray().apply {
             put(JSONObject().apply { put("role", "system"); put("content", systemPrompt) })
-            put(JSONObject().apply { put("role", "user"); put("content", prompt) }) 
+            put(JSONObject().apply { put("role", "user"); put("content", prompt) })
         }
 
         try {
             while (true) {
-                val json = JSONObject().apply { put("model", settings.apiModel.first()); put("messages", messages); put("tools", toolsJson); put("stream", true) }
-                val request = Request.Builder().url(url).addHeader("Authorization", "Bearer $key").post(json.toString().toRequestBody("application/json".toMediaType())).build()
+                val json = JSONObject().apply {
+                    put("model", settings.apiModel.first())
+                    put("messages", messages)
+                    put("tools", toolsJson)
+                    put("stream", true)
+                }
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $key")
+                    .post(json.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
 
                 var hasToolCalls = false
                 var toolCallId = ""
                 var toolCallName = ""
-                var toolCallArgs = StringBuilder()
-                var aiFullText = StringBuilder()
+                val toolCallArgs = StringBuilder()
+                val aiFullText = StringBuilder()
 
                 suspend fun processStream(): Boolean = suspendCancellableCoroutine { continuation ->
                     val listener = object : EventSourceListener() {
                         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                            if (data == "[DONE]") { continuation.resume(hasToolCalls); return }
+                            if (data == "[DONE]") {
+                                continuation.resume(hasToolCalls)
+                                return
+                            }
                             try {
                                 val delta = JSONObject(data).getJSONArray("choices").getJSONObject(0).getJSONObject("delta")
                                 if (delta.has("content")) {
@@ -92,10 +116,12 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                                 }
                             } catch (e: Exception) {}
                         }
+
                         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                             trySend(AgentEvent.Error("流断开: ${t?.message}"))
                             continuation.resume(false)
                         }
+
                         override fun onClosed(eventSource: EventSource) {
                             continuation.resume(hasToolCalls)
                         }
@@ -111,20 +137,32 @@ class AgentRepository(private val settings: SettingsRepository, private val proo
                     messages.put(JSONObject().apply {
                         put("role", "assistant")
                         put("tool_calls", JSONArray().put(JSONObject().apply {
-                            put("id", toolCallId); put("type", "function")
-                            put("function", JSONObject().apply { put("name", toolCallName); put("arguments", toolCallArgs.toString()) })
+                            put("id", toolCallId)
+                            put("type", "function")
+                            put("function", JSONObject().apply {
+                                put("name", toolCallName)
+                                put("arguments", toolCallArgs.toString())
+                            })
                         }))
                     })
-                    
-                    val cmd = try { JSONObject(toolCallArgs.toString()).getString("command") } catch (e: Exception) { "echo 解析参数失败" }
+
+                    val cmd = try {
+                        JSONObject(toolCallArgs.toString()).getString("command")
+                    } catch (e: Exception) {
+                        "echo 解析参数失败"
+                    }
                     send(AgentEvent.Progress("执行命令", cmd))
-                    
+
                     val output = StringBuilder()
                     prootManager.executeCommand(cmd).collect { logLine ->
                         output.append(logLine).append("\n")
                         send(AgentEvent.Progress("运行中", logLine))
                     }
-                    messages.put(JSONObject().apply { put("role", "tool"); put("tool_call_id", toolCallId); put("content", output.toString()) })
+                    messages.put(JSONObject().apply {
+                        put("role", "tool")
+                        put("tool_call_id", toolCallId)
+                        put("content", output.toString())
+                    })
                 } else {
                     break
                 }
