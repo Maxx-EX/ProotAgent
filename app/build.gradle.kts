@@ -94,4 +94,5 @@ dependencies {
     // 核心工具与 SSH
     implementation(libs.commons.compress)
     implementation(libs.sshj)
+    implementation(libs.bcprov.jdk18on)
 }
