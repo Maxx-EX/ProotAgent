@@ -3,10 +3,80 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    
+    <!-- 外围深蓝色轮廓 (左直角, 右圆弧) -->
     <path
-        android:fillColor="#7DD3FC"
-        android:pathData="M32,38 L48,54 L32,70 L36,74 L56,54 L36,34 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 30 22 L 68 22 C 86 22 98 36 98 54 C 98 72 86 86 68 86 L 45 86" />
     <path
-        android:fillColor="#F472B6"
-        android:pathData="M58,68 L76,68 L76,74 L58,74 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M 30 22 L 30 86" />
+
+    <!-- 内部彩色连线 -->
+    <!-- 青色线 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#14B8A6"
+        android:strokeWidth="3"
+        android:pathData="M 53 22 L 53 36 M 53 72 L 53 86 M 30 48 L 42 48" />
+    <!-- 紫色线 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#A855F7"
+        android:strokeWidth="3"
+        android:pathData="M 66 36 L 76 36 M 73 60 L 73 72 M 33 36 L 40 44 L 40 50" />
+    <!-- 浅蓝线 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#3B82F6"
+        android:strokeWidth="3"
+        android:pathData="M 66 55 L 74 55 L 80 60 M 40 66 L 46 72 M 38 85 L 48 75" />
+
+    <!-- 连接节点 (圆点) -->
+    <path android:fillColor="#14B8A6" android:pathData="M 53,22 A 3,3 0 1,1 53,21.9 Z" />
+    <path android:fillColor="#14B8A6" android:pathData="M 53,86 A 3,3 0 1,1 53,85.9 Z" />
+    <path android:fillColor="#14B8A6" android:pathData="M 30,48 A 3,3 0 1,1 30,47.9 Z" />
+    <path android:fillColor="#A855F7" android:pathData="M 74,36 A 3,3 0 1,1 74,35.9 Z" />
+    <path android:fillColor="#A855F7" android:pathData="M 73,73 A 3,3 0 1,1 73,72.9 Z" />
+    <path android:fillColor="#3B82F6" android:pathData="M 82,61 A 3,3 0 1,1 82,60.9 Z" />
+    <path android:fillColor="#3B82F6" android:pathData="M 30,86 A 3,3 0 1,1 30,85.9 Z" />
+    <path android:fillColor="#3B82F6" android:pathData="M 48,76 A 3,3 0 1,1 48,75.9 Z" />
+
+    <!-- 中心芯片圆圈背景 -->
+    <path
+        android:fillColor="#F8F9FA"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="5"
+        android:pathData="M 54,54 m -22,0 a 22,22 0 1,1 44,0 a 22,22 0 1,1 -44,0" />
+
+    <!-- 芯片主体 -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M 42,42 L 66,42 L 66,66 L 42,66 Z" />
+        
+    <!-- 芯片引脚 (上下左右) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#0F172A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 46,38 L 46,42 M 54,38 L 54,42 M 62,38 L 62,42 
+                          M 46,66 L 46,70 M 54,66 L 54,70 M 62,66 L 62,70 
+                          M 38,46 L 42,46 M 38,54 L 42,54 M 38,62 L 42,62 
+                          M 66,46 L 70,46 M 66,54 L 70,54 M 66,62 L 70,62" />
+
+    <!-- 芯片内 C 形图案 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F8F9FA"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M 60,48 L 48,48 L 48,60 L 60,60" />
 </vector>
