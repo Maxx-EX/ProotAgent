@@ -47,28 +47,10 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
         topBar = {
             TopAppBar(
                 title = { 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, 
-                        modifier = Modifier.clickable { 
-                            // 核心逻辑：如果环境未就绪，点击跳转。如果已就绪，弹窗提示或啥也不干。
-                            if (!state.isEnvReady) {
-                                navController.navigate("env") 
-                            } else {
-                                Toast.makeText(context, "环境已就绪，无需重复准备", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Icon(
-                            Icons.Filled.Computer, null, 
-                            tint = if (state.isEnvReady) AccentTeal else Color.Red, 
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { if (state.workMode == 0) navController.navigate("env") }) {
+                        Icon(Icons.Filled.Computer, null, tint = if (state.isEnvReady) AccentTeal else Color.Red, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(
-                            if (state.isEnvReady) "环境已就绪" else "未准备环境，点击前往", 
-                            color = if (state.isEnvReady) AccentTeal else Color.Red, 
-                            fontSize = 14.sp
-                        )
+                        Text(if (state.workMode == 1) "SSH 模式" else if (state.isEnvReady) "环境已就绪" else "未准备环境", color = if (state.isEnvReady) AccentTeal else Color.Red, fontSize = 14.sp)
                     }
                 },
                 actions = {
@@ -80,33 +62,41 @@ fun HomeScreen(navController: NavController, viewModel: AgentViewModel = viewMod
             )
         },
         bottomBar = {
-            Row(Modifier.fillMaxWidth().background(glass.bgStart.copy(alpha = 0.95f)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = state.inputText, onValueChange = viewModel::updateInput,
-                    enabled = !state.isGenerating,
-                    modifier = Modifier.weight(1f), placeholder = { Text(if (state.isGenerating) "AI 运行中，请稍候..." else "输入指令…", color = glass.textSecondary, fontSize = 14.sp) },
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = glass.border, focusedContainerColor = glass.glassBg, unfocusedContainerColor = glass.glassBg, focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary), maxLines = 3
-                )
-                Spacer(Modifier.width(8.dp))
+            Column(Modifier.fillMaxWidth().background(glass.bgStart.copy(alpha = 0.95f))) {
+                // 工作模式切换胶囊
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
+                    Text(
+                        text = if (state.workMode == 0) "当前: 内置 Proot (点击切换)" else "当前: Termux SSH (点击切换)",
+                        color = AccentBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(glass.glassBg, RoundedCornerShape(50))
+                            .clickable { viewModel.toggleWorkMode(if (state.workMode == 0) 1 else 0) }
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
                 
-                if (state.isGenerating) {
-                    IconButton(onClick = viewModel::stopGeneration, modifier = Modifier.background(Color.Red, RoundedCornerShape(50)).size(44.dp)) {
-                        Icon(Icons.Filled.Stop, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
-                } else {
-                    IconButton(
-                        onClick = { 
-                            if (!state.isEnvReady) {
-                                Toast.makeText(context, "请先点击顶部准备环境", Toast.LENGTH_SHORT).show()
-                                navController.navigate("env")
-                            } else if (state.inputText.isNotBlank()) {
-                                viewModel.sendMessage()
-                            }
-                        },
-                        modifier = Modifier.background(if (state.isEnvReady) AccentBlue else glass.glassBg, RoundedCornerShape(50)).size(44.dp)
-                    ) {
-                        Icon(Icons.Filled.Send, null, tint = if (state.isEnvReady) glass.bgStart else glass.textSecondary, modifier = Modifier.size(20.dp))
+                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = state.inputText, onValueChange = viewModel::updateInput,
+                        enabled = !state.isGenerating,
+                        modifier = Modifier.weight(1f), placeholder = { Text("输入指令…", color = glass.textSecondary, fontSize = 14.sp) },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentBlue, unfocusedBorderColor = glass.border, focusedContainerColor = glass.glassBg, unfocusedContainerColor = glass.glassBg, focusedTextColor = glass.textPrimary, unfocusedTextColor = glass.textPrimary), maxLines = 3
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    
+                    if (state.isGenerating) {
+                        IconButton(onClick = viewModel::stopGeneration, modifier = Modifier.background(Color.Red, RoundedCornerShape(50)).size(44.dp)) {
+                            Icon(Icons.Filled.Stop, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    } else {
+                        IconButton(
+                            onClick = { 
+                                if (!state.isEnvReady && state.workMode == 0) { Toast.makeText(context, "请先准备环境", Toast.LENGTH_SHORT).show(); navController.navigate("env") }
+                                else if (state.inputText.isNotBlank()) viewModel.sendMessage()
+                            },
+                            modifier = Modifier.background(AccentBlue, RoundedCornerShape(50)).size(44.dp)
+                        ) { Icon(Icons.Filled.Send, null, tint = glass.bgStart, modifier = Modifier.size(20.dp)) }
                     }
                 }
             }

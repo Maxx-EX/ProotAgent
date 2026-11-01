@@ -21,19 +21,19 @@ data class UiState(
     val messages: List<ChatItem> = emptyList(), 
     val isGenerating: Boolean = false, 
     val inputText: String = "", 
-    val updateInfo: AppUpdateInfo? = null, val isDownloading: Boolean = false, val downloadProgress: Int = 0,
-    val isEnvReady: Boolean = false, val envProgress: Int = 0, val envStatus: String = "未准备",
+    val updateInfo: AppUpdateInfo? = null, val isEnvReady: Boolean = false, 
+    val envStatus: String = "未准备", val activeRootfsPath: String = "",
     val historyList: List<HistoryRecord> = emptyList(),
-    val currentOsType: Int = 0,
-    val activeRootfsPath: String = ""
+    val workMode: Int = 0 // 0: Proot, 1: SSH Termux
 )
 
 class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
     private val prootManager = ProotManager(app.applicationInfo.nativeLibraryDir)
+    private val sshManager = TermuxSshManager()
     private val rootfsManager = RootfsManager(app)
     private val historyRepo = ChatHistoryRepository(app)
-    private val agentRepo = AgentRepository(settingsRepo, prootManager)
+    private val agentRepo = AgentRepository(settingsRepo, prootManager, sshManager)
     private val mcpServer = McpServer(8080, prootManager)
 
     private val _uiState = MutableStateFlow(UiState())
@@ -42,42 +42,50 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     init {
         mcpServer.start()
         checkUpdate()
-        checkEnv()
+        viewModelScope.launch {
+            val mode = settingsRepo.workMode.first()
+            _uiState.update { it.copy(workMode = mode) }
+            checkEnv()
+        }
         loadHistory()
-        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。系统会自动扫描内部及 /sdcard/ai1 目录下的 Linux 环境。"))) }
+        _uiState.update { it.copy(messages = listOf(ChatItem(type = ChatItem.Type.AI, text = "你好！我是 ProotAgent。你可以切换工作模式：内置 Proot 或 Termux SSH。"))) }
+    }
+
+    fun toggleWorkMode(mode: Int) {
+        _uiState.update { it.copy(workMode = mode) }
+        viewModelScope.launch { settingsRepo.saveWorkMode(mode) }
+        checkEnv()
     }
 
     fun checkEnv() {
         viewModelScope.launch {
-            val path = rootfsManager.getValidRootfsPath()
-            val osType = settingsRepo.osType.first()
-            _uiState.update { it.copy(
-                isEnvReady = path != null, 
-                envStatus = if (path != null) "环境已就绪: $path" else "未准备",
-                currentOsType = osType,
-                activeRootfsPath = path ?: ""
-            ) }
-        }
-    }
-
-    // 让用户手动指定路径（用于 SAF 或直接路径）
-    fun setManualPath(path: String) {
-        val file = File(path)
-        if (File(file, "bin/sh").exists() || File(file, "bin/bash").exists()) {
-            _uiState.update { it.copy(isEnvReady = true, envStatus = "已识别手动目录: $path", activeRootfsPath = path) }
+            if (_uiState.value.workMode == 1) {
+                // SSH 模式不需要检测本地环境
+                _uiState.update { it.copy(isEnvReady = true, envStatus = "已连接 Termux SSH") }
+            } else {
+                val path = rootfsManager.getValidRootfsPath()
+                _uiState.update { it.copy(
+                    isEnvReady = path != null, 
+                    envStatus = if (path != null) "环境已就绪: $path" else "未准备",
+                    activeRootfsPath = path ?: ""
+                ) }
+            }
         }
     }
 
     fun installDeps() {
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true) }
-            val path = _uiState.value.activeRootfsPath
-            val cmd = if (_uiState.value.currentOsType == 1) {
-                "apt update && apt install -y python3 python3-pip git curl build-essential"
+            val cmd = "apt update && apt install -y python3 python3-pip git curl build-essential || apk update && apk add python3 py3-pip git curl build-base"
+            if (_uiState.value.workMode == 0) {
+                prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath).collect { _ -> }
             } else {
-                "apk update && apk add python3 py3-pip nodejs npm git curl build-base"
+                val host = settingsRepo.sshHost.first()
+                val port = settingsRepo.sshPort.first()
+                val user = settingsRepo.sshUser.first()
+                val pass = settingsRepo.sshPass.first()
+                sshManager.executeCommand(host, port, user, pass, cmd).collect { _ -> }
             }
-            prootManager.executeCommand(cmd, path).collect { _ -> }
             _uiState.update { it.copy(isGenerating = false) }
         }
     }
@@ -88,7 +96,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             val source = settingsRepo.rootfsSource.first()
             val osType = settingsRepo.osType.first()
             rootfsManager.prepareEnvironment(source, osType).collect { (p, msg) ->
-                _uiState.update { it.copy(envProgress = p, envStatus = msg) }
+                _uiState.update { it.copy(envStatus = msg) }
             }
             checkEnv()
         }
@@ -131,8 +139,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun updateInput(text: String) = _uiState.update { it.copy(inputText = text) }
 
     fun sendMessage() {
-        checkEnv()
-        if (!_uiState.value.isEnvReady || _uiState.value.isGenerating) return
+        if (_uiState.value.isGenerating) return
         val prompt = _uiState.value.inputText.trim()
         if (prompt.isEmpty()) return
         
@@ -146,22 +153,32 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         ) }
 
         viewModelScope.launch {
-            agentRepo.runAgent(prompt, _uiState.value.activeRootfsPath).collect { event ->
+            // 执行器分发
+            val cmdExecutor: (String) -> Flow<String> = if (_uiState.value.workMode == 0) {
+                { cmd -> prootManager.executeCommand(cmd, _uiState.value.activeRootfsPath) }
+            } else {
+                { cmd -> 
+                    val host = settingsRepo.sshHost.first()
+                    val port = settingsRepo.sshPort.first()
+                    val user = settingsRepo.sshUser.first()
+                    val pass = settingsRepo.sshPass.first()
+                    sshManager.executeCommand(host, port, user, pass, cmd)
+                }
+            }
+
+            agentRepo.runAgent(prompt, cmdExecutor).collect { event ->
                 when (event) {
                     is AgentEvent.Text -> _uiState.update { state ->
-                        val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it }
-                        state.copy(messages = updated)
+                        state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + event.text) else it })
                     }
                     is AgentEvent.Progress -> _uiState.update { state ->
-                        val updated = state.messages.map { msg ->
+                        state.copy(messages = state.messages.map { msg ->
                             if (msg.id == progressId) msg.copy(text = event.summary, details = msg.details.toMutableList().apply { if (event.log.isNotEmpty()) add(event.log); if (size > 30) removeAt(0) })
                             else msg
-                        }
-                        state.copy(messages = updated)
+                        })
                     }
                     is AgentEvent.Error -> _uiState.update { state ->
-                        val updated = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it }
-                        state.copy(messages = updated)
+                        state.copy(messages = state.messages.map { if (it.id == aiMsgId) it.copy(text = it.text + "\n[错误] ${event.message}") else it })
                     }
                     AgentEvent.Done -> { _uiState.update { it.copy(isGenerating = false) }; saveCurrentChat() }
                 }

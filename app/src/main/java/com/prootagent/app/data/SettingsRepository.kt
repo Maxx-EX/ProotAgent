@@ -17,7 +17,14 @@ class SettingsRepository(private val context: Context) {
         val THEME_MODE = intPreferencesKey("theme_mode")
         val DOWNLOAD_URI = stringPreferencesKey("download_uri")
         val ROOTFS_SOURCE = intPreferencesKey("rootfs_source")
-        val OS_TYPE = intPreferencesKey("os_type") // 0: Alpine, 1: Ubuntu
+        val OS_TYPE = intPreferencesKey("os_type")
+        
+        // SSH 相关
+        val SSH_HOST = stringPreferencesKey("ssh_host")
+        val SSH_PORT = intPreferencesKey("ssh_port")
+        val SSH_USER = stringPreferencesKey("ssh_user")
+        val SSH_PASS = stringPreferencesKey("ssh_pass")
+        val WORK_MODE = intPreferencesKey("work_mode") // 0: Proot, 1: Termux SSH
     }
     
     val apiUrl = context.dataStore.data.map { it[API_URL] ?: "https://api.openai.com/v1" }
@@ -29,10 +36,19 @@ class SettingsRepository(private val context: Context) {
     val rootfsSource = context.dataStore.data.map { it[ROOTFS_SOURCE] ?: 0 }
     val osType = context.dataStore.data.map { it[OS_TYPE] ?: 0 }
     
+    val sshHost = context.dataStore.data.map { it[SSH_HOST] ?: "127.0.0.1" }
+    val sshPort = context.dataStore.data.map { it[SSH_PORT] ?: 8022 } // Termux 默认 8022
+    val sshUser = context.dataStore.data.map { it[SSH_USER] ?: "u0_a" }
+    val sshPass = context.dataStore.data.map { it[SSH_PASS] ?: "" }
+    val workMode = context.dataStore.data.map { it[WORK_MODE] ?: 0 }
+
     suspend fun saveConfig(url: String, key: String, model: String) = context.dataStore.edit { it[API_URL] = url; it[API_KEY] = key; it[API_MODEL] = model }
-    suspend fun saveUpdateSource(source: Int) = context.dataStore.edit { it[UPDATE_SOURCE] = source }
     suspend fun saveThemeMode(mode: Int) = context.dataStore.edit { it[THEME_MODE] = mode }
-    suspend fun saveDownloadUri(uri: String) = context.dataStore.edit { it[DOWNLOAD_URI] = uri }
-    suspend fun saveRootfsSource(source: Int) = context.dataStore.edit { it[ROOTFS_SOURCE] = source }
     suspend fun saveOsType(type: Int) = context.dataStore.edit { it[OS_TYPE] = type }
+    suspend fun saveUpdateSource(source: Int) = context.dataStore.edit { it[UPDATE_SOURCE] = source }
+    
+    suspend fun saveSshConfig(host: String, port: Int, user: String, pass: String) = context.dataStore.edit { 
+        it[SSH_HOST] = host; it[SSH_PORT] = port; it[SSH_USER] = user; it[SSH_PASS] = pass 
+    }
+    suspend fun saveWorkMode(mode: Int) = context.dataStore.edit { it[WORK_MODE] = mode }
 }

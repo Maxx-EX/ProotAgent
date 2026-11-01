@@ -86,8 +86,12 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.commons.compress)
+    implementation(libs.sshj)
+    implementation(libs.sshj)
     implementation(libs.okhttp.sse)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.commons.compress)
+    implementation(libs.sshj)
+    implementation(libs.sshj)
 }
