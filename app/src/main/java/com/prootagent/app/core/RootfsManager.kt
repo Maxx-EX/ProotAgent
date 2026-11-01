@@ -29,7 +29,7 @@ class RootfsManager(private val context: Context) {
         }
     }
 
-    fun isInstalled(): Boolean = File(rootfsDir, ".installed").exists()
+    fun isInstalled(): Boolean { val shFile = File(rootfsDir, "bin/sh"); val envFile = File(rootfsDir, "usr/bin/env"); return (shFile.exists() && shFile.length() > 0) || (envFile.exists() && envFile.length() > 0) }
     fun deleteRootfs() { rootfsDir.deleteRecursively(); rootfsTar.delete() }
 
     fun prepareEnvironment(sourceType: Int, osType: Int): Flow<Pair<Int, String>> = flow {
