@@ -10,6 +10,7 @@ import java.io.*
 
 class ProotManager(private val nativeLibDir: String) {
     private val prootBin = File(nativeLibDir, "libproot.so")
+    private val loaderBin = File(nativeLibDir, "libproot_loader.so")
 
     fun findRootfs(): File? {
         val dirs = listOf(
@@ -25,11 +26,12 @@ class ProotManager(private val nativeLibDir: String) {
 
     fun executeCommand(command: String, rootfsPath: String): Flow<String> = flow {
         if (!prootBin.exists()) {
-            emit("❌ 未找到 Proot 二进制"); return@flow
+            emit("❌ 未找到 Proot 二进制: ${prootBin.absolutePath}"); return@flow
         }
         
         var rootfsDir = File(rootfsPath)
         
+        // 自动解压逻辑
         if (!File(rootfsDir, "bin/sh").exists()) {
             val tarFile = File(rootfsDir, "ubuntu-base-22.04-base-arm64.tar.gz")
             if (tarFile.exists()) {
@@ -70,9 +72,14 @@ class ProotManager(private val nativeLibDir: String) {
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
             
-            // 【核心修复】将 nativeLibDir 加入环境变量，让 proot 能找到 libtalloc.so
+            // 注入环境变量
             val env = pb.environment()
             env["LD_LIBRARY_PATH"] = nativeLibDir
+            
+            // 如果存在 loader，则注入 PROOT_LOADER
+            if (loaderBin.exists()) {
+                env["PROOT_LOADER"] = loaderBin.absolutePath
+            }
             
             val process = pb.start()
             val reader = BufferedReader(InputStreamReader(process.inputStream))
